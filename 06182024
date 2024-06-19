@@ -17,7 +17,7 @@ window_size_sec = 4    # in [s]
 sampling_freq = 44100  # in [Hz]  
 window_len_sample = window_size_sec * sampling_freq
 num_noise_combinations = 27
-num_epochs=25
+num_epochs=50
 train_ratio = 0.6
 val_ratio = 0.2
 downsampling_new_sr = 200
@@ -71,7 +71,7 @@ def generate_spectrogram(input_data):
     tf_inputs = {}
 
     for i, datapoint in enumerate (input_data):
-        tf_inputs[i+1] = librosa.stft(datapoint, n_fft=2048,hop_length=512)
+        tf_inputs[i+1] = librosa.stft(datapoint, n_fft=256,hop_length=128)
 
     num_freq_comp = tf_inputs[1].shape[0]
     num_time_comp = tf_inputs[1].shape[1]
@@ -86,9 +86,9 @@ def find_RMS_noise(output_data):
         RMS_values[i+1] = librosa.feature.rms(y=datapoint).mean()
 
     return RMS_values
-class CNN(nn.Module):
+class CNN_LSTM(nn.Module):
     def __init__(self,num_freq_comp,num_time_comp):
-        super(CNN, self).__init__()
+        super(CNN_LSTM, self).__init__()
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=16, kernel_size=3, stride=1, padding=1)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
         self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=1)
@@ -105,6 +105,30 @@ class CNN(nn.Module):
         x = x[:,-1,:]
         x=self.fc2(x)
         return x
+class CNN(nn.Module):
+    def __init__(self,num_freq_comp,num_time_comp):
+        super(CNN, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=16, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=1)
+        self.conv3 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1)
+
+        self.fc1_input_size = 64 * (num_freq_comp/8) * (num_time_comp/8)
+
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
+        self.fc1 = nn.Linear(64 * (num_freq_comp//8)*(num_time_comp//8),512)
+        self.fc1 = nn.Linear(512,128)
+        self.fc2 = nn.Linear(128, 1)
+        self.relu = nn.ReLU()
+    def forward(self,x,num_freq_comp,num_time_comp):
+        x=self.pool(self.relu(self.conv1(x)))
+        x=self.pool(self.relu(self.conv1(x)))
+        x=self.pool(self.relu(self.conv1(x)))
+
+        x=x.view(-1,self.fc1_input_size)
+        x = self.relu(self.fc1(x))
+        x = self.relu(self.fc2(x))
+        x = self.fc3(x)
+        return x
 def plotting_performance(loss_values):
     plt.figure(figsize=(10,5))
     plt.plot(range(1,num_epochs+1), loss_values, marker = "o", label = "Training loss")
@@ -115,7 +139,7 @@ def plotting_performance(loss_values):
     plt.savefig("training.png")
 def ML_train_model(num_freq_comp,num_time_comp,train_inputs,train_labels, val_inputs, val_labels):
 
-    model = CNN(num_freq_comp,num_time_comp)
+    model = CNN_LSTM(num_freq_comp,num_time_comp)
     reg_criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(),lr=0.001)
 
@@ -153,8 +177,8 @@ def ML_train_model(num_freq_comp,num_time_comp,train_inputs,train_labels, val_in
         avg_train_loss = running_train_loss / num_train_batches
         train_loss_values.append(avg_train_loss)
 
-    with open("model.pkl", "wb") as file:
-        pickle.dump(model, file)
+    # with open("model.pkl", "wb") as file:
+    #     pickle.dump(model, file)
 
     plotting_performance(train_loss_values)
 
@@ -237,7 +261,19 @@ def data_splitting(data,labels):
 
 
 def run_CNN():
-    input_data, output_data = generate_IO()
+    #input_data, output_data = generate_IO()
+
+    # with open("input_data.pkl", "wb") as file:
+    #     pickle.dump(input_data, file)
+    # with open("output_data.pkl", "wb") as file:
+    #     pickle.dump(output_data, file)
+
+
+    with open("input_data.pkl","rb") as file:
+        input_data = pickle.load(file)
+    with open("output_data.pkl","rb") as file:
+        output_data = pickle.load(file)
+
     inputs_tensor, num_freq_comp, num_time_comp = generate_spectrogram(input_data)
     labels = find_RMS_noise(output_data)
 
