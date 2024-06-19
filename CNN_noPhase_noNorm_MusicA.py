@@ -18,12 +18,12 @@ window_size_sec = 4    # in [s]
 sampling_freq = 44100  # in [Hz]  
 window_len_sample = window_size_sec * sampling_freq
 num_noise_combinations = 27
-num_epochs=100
+num_epochs=50
 train_ratio = 0.6
 val_ratio = 0.2
 downsampling_new_sr = 200
 window_len_sample_downsampled = window_size_sec * downsampling_new_sr
-batch_size = 10
+batch_size = 20
 
 ################################### Main
 def audio_windowing(audio):
@@ -102,7 +102,6 @@ class CNN(nn.Module):
         self.fc2= nn.Linear(512,128)
         self.fc3 = nn.Linear(128, 1)
         
-
     def _get_flattened_size(self,num_freq_comp,num_time_comp):
         x = torch.zeros(1,1,num_freq_comp,num_time_comp)
         x = self.pool(self.relu(self.conv1(x)))
@@ -132,9 +131,9 @@ def plotting_performance(loss_values,title):
 def plotting_results(errors,title):
     errors_ready = [error.item() for error in errors]
     plt.figure(figsize=(10,5))
-    plt.hist(errors_ready)
-    plt.xlabel("Num. of datapoints")
-    plt.ylabel("Error [%]")
+    plt.hist(errors_ready,bins=10)
+    plt.xlabel("Error [%]")
+    plt.ylabel("Num of datapoints")
     plt.title(title)
     #plt.show()
     plt.savefig(f"{title}.png")
@@ -295,7 +294,6 @@ def run_CNN():
     
     model = ML_train_model(num_freq_comp,num_time_comp,train_inputs,train_labels, val_inputs, val_labels)
     test_errors = ML_test_model(model, num_freq_comp, num_time_comp, test_inputs, test_labels)
-
     
 if __name__ == "__main__":
     run_CNN()
