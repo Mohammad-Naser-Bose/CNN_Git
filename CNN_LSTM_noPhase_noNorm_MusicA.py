@@ -18,7 +18,7 @@ window_size_sec = 4    # in [s]
 sampling_freq = 44100  # in [Hz]  
 window_len_sample = window_size_sec * sampling_freq
 num_noise_combinations = 27
-num_epochs=50
+num_epochs=25
 train_ratio = 0.6
 val_ratio = 0.2
 downsampling_new_sr = 200
@@ -144,9 +144,10 @@ def plotting_results_general_training(error,predictions,gt,printing_label):
     #plt.show()
     plt.savefig(f"{printing_label} raw performance.png")
 def plotting_results_general_other(error,predictions,gt,printing_label):
-    error_ready = [element for array in error for element in array.tolist()]
+    error_ready1 = [element for array in error for element in array.tolist()]
+    error_ready2 = sum(error_ready1,[])
     plt.figure(figsize=(10,5))
-    plt.hist(error_ready,bins=10)
+    plt.hist(error_ready2,bins=10)
     plt.xlabel("Error [%]")
     plt.ylabel("Num of datapoints")
     #plt.title(title)
@@ -187,14 +188,10 @@ def ML_train_model(num_freq_comp,num_time_comp,train_inputs,train_labels, val_in
 
     # Training
     train_loss_values = []
-    error_training_arr={}
-    predictions_training_arr={}
-    ground_truth_training_arr={}
     error=[]
     predictions=[]
     gt=[]
     for epoch in range(num_epochs):
-
         model.train()
         running_train_loss = 0
         num_train_batches = len(train_inputs)
@@ -207,12 +204,13 @@ def ML_train_model(num_freq_comp,num_time_comp,train_inputs,train_labels, val_in
             optimizer.step()
             running_train_loss += loss_value.item()
 
-            ground_truth_values = targets.detach().cpu().numpy().flatten()
-            predicted_values = outputs.detach().cpu().numpy().flatten()
-            error.append(((abs(ground_truth_values-predicted_values))/(ground_truth_values))*100)
+            if epoch == num_epochs-1:
+                ground_truth_values = targets.detach().cpu().numpy().flatten()
+                predicted_values = outputs.detach().cpu().numpy().flatten()
+                error.append(((abs(ground_truth_values-predicted_values))/(ground_truth_values))*100)
 
-            predictions.append(predicted_values)
-            gt.append(ground_truth_values)
+                predictions.append(predicted_values)
+                gt.append(ground_truth_values)
 
         avg_train_loss = running_train_loss / num_train_batches
         train_loss_values.append(avg_train_loss)
