@@ -14,13 +14,13 @@ from torch.utils.data import DataLoader, TensorDataset, Dataset
 ################################### Inputs
 recordings_path = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Generated_noisy_recordings_short"
 noise_path = r"\\solid\oemcom\MN_2024\Noise\to_use"
-window_size_sec = 4    # in [s]
+window_size_sec = 4  # in [s]
 sampling_freq = 44100  # in [Hz]  
 window_len_sample = window_size_sec * sampling_freq
 num_noise_combinations = 27
 num_epochs=25
-train_ratio = 0.6
-val_ratio = 0.2
+train_ratio = 0.8
+val_ratio = 0.1
 downsampling_new_sr = 200
 window_len_sample_downsampled = window_size_sec * downsampling_new_sr
 batch_size = 2
