@@ -18,13 +18,12 @@ window_size_sec = 4    # in [s]
 sampling_freq = 44100  # in [Hz]  
 window_len_sample = window_size_sec * sampling_freq
 num_noise_combinations = 27
-num_epochs=25
-train_ratio = 0.8
-val_ratio = 0.1
+num_epochs=50
+train_ratio = 0.6
+val_ratio = 0.2
 downsampling_new_sr = 200
 window_len_sample_downsampled = window_size_sec * downsampling_new_sr
-batch_size = 30
-
+batch_size = 2
 ################################### Main
 def audio_windowing(audio):
     num_windows = len(audio) // window_len_sample_downsampled
@@ -115,7 +114,7 @@ def plotting_performance(loss_values,title):
     plt.ylabel("Loss")
     plt.title(title)
     #plt.show()
-    plt.savefig("training_ep.png")
+    plt.savefig("Training Error_per_Epoch.png")
 def plotting_results(errors,title):
     errors_ready = [error.item() for error in errors]
     plt.figure(figsize=(10,5))
@@ -125,7 +124,26 @@ def plotting_results(errors,title):
     plt.title(title)
     #plt.show()
     plt.savefig(f"{title}.png")
-def plotting_results_training(error,predictions,gt):
+def plotting_results_general_training(error,predictions,gt,printing_label):
+    error_ready = [element for array in error for element in array.tolist()]
+    plt.figure(figsize=(10,5))
+    plt.hist(error_ready,bins=100)
+    plt.xlabel("Error [%]")
+    plt.ylabel("Num of datapoints")
+    #plt.title(title)
+    #plt.show()
+    plt.savefig(f"{printing_label} histogram performance.png")
+
+    real_ready = [element for array in gt for element in array.tolist()]
+    pred_ready = [element for array in predictions for element in array.tolist()]
+    diff = [a-b for a,b in zip(real_ready,pred_ready)]
+    plt.figure(figsize=(10,5))
+    plt.plot(real_ready[1:1000])
+    plt.plot(pred_ready[1:1000])
+    #plt.title(title)
+    #plt.show()
+    plt.savefig(f"{printing_label} raw performance.png")
+def plotting_results_general_other(error,predictions,gt,printing_label):
     error_ready = [element for array in error for element in array.tolist()]
     plt.figure(figsize=(10,5))
     plt.hist(error_ready,bins=10)
@@ -133,16 +151,16 @@ def plotting_results_training(error,predictions,gt):
     plt.ylabel("Num of datapoints")
     #plt.title(title)
     #plt.show()
-    plt.savefig(f"training_histo.png")
+    plt.savefig(f"{printing_label} histogram performance.png")
 
-    real_ready = [element for array in gt for element in array.tolist()]
-    pred_ready = [element for array in predictions for element in array.tolist()]
+    real_ready = [value.item() for value in gt]
+    pred_ready = [value.item() for value in predictions]
     plt.figure(figsize=(10,5))
-    plt.plot(real_ready.reshape(-1))
-    plt.plot(pred_ready.reshape(-1))
+    plt.plot(real_ready)
+    plt.plot(pred_ready)
     #plt.title(title)
     #plt.show()
-    plt.savefig(f"training_diff.png")
+    plt.savefig(f"{printing_label} raw performance.png")
 class CustomDataset(Dataset):
     def __init__(self,inputs_dict,labels_dict):
         self.inputs = inputs_dict
@@ -156,6 +174,9 @@ class CustomDataset(Dataset):
         label = self.labels[key]
         return input_data, label
 def ML_train_model(num_freq_comp,num_time_comp,train_inputs,train_labels, val_inputs, val_labels):
+    reg_criterion = nn.MSELoss()
+    
+    
     dataset = CustomDataset(train_inputs,train_labels)
     dataloader = DataLoader(dataset,batch_size=batch_size, shuffle=True)
 
@@ -196,9 +217,32 @@ def ML_train_model(num_freq_comp,num_time_comp,train_inputs,train_labels, val_in
         avg_train_loss = running_train_loss / num_train_batches
         train_loss_values.append(avg_train_loss)
 
-    printing_label = "Training"
-    plotting_performance(train_loss_values,printing_label)
-    plotting_results_training(error,predictions,gt)
+    with open("model.pkl", "wb") as file:
+        pickle.dump(model, file)
+    with open("train_loss_values.pkl", "wb") as file:
+        pickle.dump(train_loss_values, file)
+    with open("error.pkl", "wb") as file:
+        pickle.dump(error, file)
+    with open("predictions.pkl", "wb") as file:
+        pickle.dump(predictions, file)
+    with open("gt.pkl", "wb") as file:
+        pickle.dump(gt, file)
+
+
+    # with open("model.pkl","rb") as file:
+    #     model = pickle.load(file)
+    # with open("train_loss_values.pkl","rb") as file:
+    #     train_loss_values = pickle.load(file)
+    # with open("error.pkl","rb") as file:
+    #     error = pickle.load(file)
+    # with open("predictions.pkl","rb") as file:
+    #     predictions = pickle.load(file)
+    # with open("gt.pkl","rb") as file:
+    #     gt = pickle.load(file)
+
+
+    plotting_performance(train_loss_values,"Training")
+    plotting_results_general_training(error,predictions,gt,"Training")
     ###################################################################
     # Validation
     val_loss_values = []
@@ -207,6 +251,8 @@ def ML_train_model(num_freq_comp,num_time_comp,train_inputs,train_labels, val_in
     running_val_loss = 0
     num_val_batches = len(val_inputs)
     errors_val=[]
+    all_pred=[]
+    all_gt=[]
     for key in val_inputs:
         my_input = val_inputs[key].requires_grad_(True)
         ground_truth_value = torch.tensor(val_labels[key])        
@@ -220,9 +266,10 @@ def ML_train_model(num_freq_comp,num_time_comp,train_inputs,train_labels, val_in
         val_loss_values.append(avg_val_loss)    
 
         errors_val.append(((abs(ground_truth_value-predicted_value))/(ground_truth_value))*100)
-
+        all_pred.append(predicted_value)
+        all_gt.append(ground_truth_value)
     printing_label = "Validation"
-    plotting_results(errors_val,printing_label)
+    plotting_results_general_other(errors_val,all_pred,all_gt,printing_label)
 
     return model
 def ML_test_model(model, num_freq_comp, num_time_comp, test_inputs, test_labels):
@@ -232,6 +279,8 @@ def ML_test_model(model, num_freq_comp, num_time_comp, test_inputs, test_labels)
     num_test_batches = len(test_inputs)
     reg_criterion = nn.MSELoss()
     errors_test = []
+    all_gt=[]
+    all_pred=[]
     for key in test_inputs:
         my_input = test_inputs[key].requires_grad_(True)
         ground_truth_value = torch.tensor(test_labels[key])        
@@ -246,12 +295,15 @@ def ML_test_model(model, num_freq_comp, num_time_comp, test_inputs, test_labels)
         print(f"Orig:{ground_truth_value}, Predicted: {predicted_value}")
 
         errors_test.append(((abs(ground_truth_value-predicted_value))/(ground_truth_value))*100)
+        all_pred.append(predicted_value)
+        all_gt.append(ground_truth_value)
 
     avg_test_loss = test_loss / num_test_batches
     #print(f"Test loss: {avg_test_loss}")
 
-    printing_label = "testing"
-    plotting_results(errors_test,printing_label)    
+    printing_label = "Testing"
+    plotting_results_general_other(errors_test,all_pred,all_gt,printing_label)
+   
 
     return test_errors
 def data_splitting(data,labels):
