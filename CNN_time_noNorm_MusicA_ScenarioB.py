@@ -21,12 +21,12 @@ window_size_sec = 4  # in [s]
 sampling_freq = 44100  # in [Hz]  
 window_len_sample = window_size_sec * sampling_freq
 num_noise_combinations = 27
-num_epochs=25
+num_epochs=2
 train_ratio = 0.8
 val_ratio = 0.1
 downsampling_new_sr = 6890   # Ratio=64
 window_len_sample_downsampled = window_size_sec * downsampling_new_sr
-batch_size = 2
+batch_size = 500
 use_filter=False
 filter_num_coeff = [1]
 filter_dem_coeff = [1, 1]
@@ -79,6 +79,18 @@ def gain_fun (audio, noise):
 
     return adjusted_audio, adjusted_noise
 def mixing_fun(audio, noise):
+    mixed_signal_sin_rec = {}
+    for i in range (0, len(audio)):
+        mixed_signal_sin_rec[i] = audio[i] + noise[i]
+    return mixed_signal_sin_rec
+def repeat_noise(audio, noise):
+    noise_data_full_length_dic = {}
+    for i in range (0, len(audio)):
+        repeat_factor = int(np.ceil(len(audio[i]) / len(noise[i])))
+        noise_data_full_length = np.tile(noise[i], repeat_factor)[:len(audio[i])]
+        noise_data_full_length_dic [i] = noise_data_full_length
+    return noise_data_full_length_dic
+def duplicating(audio, noise):
     duplicated_audio = {}
     duplicated_noise = {}
     master_c = 0
@@ -87,113 +99,66 @@ def mixing_fun(audio, noise):
             duplicated_audio[master_c]=audio[i]
             duplicated_noise[master_c]=noise[ii]
             master_c+=1
-
-    mixed_signal_sin_rec ={}
-    for i in range (0, len(audio)*num_noise_combinations):
-        repeat_factor = int(np.ceil(len(duplicated_audio[i]) / len(duplicated_noise[i])))
-        noise_data_full_length = np.tile(duplicated_noise[i], repeat_factor)[:len(duplicated_audio[i])]
-        mixed_signal_sin_rec[i] = duplicated_audio[i] + noise_data_full_length
-
-    return 
-
-
-
-
-def audio_windowing(audio):
-    num_windows = len(audio) // window_len_sample_downsampled
-    extra_samples = len(audio) % (num_windows*window_len_sample_downsampled)
-    truncated_audio = audio[extra_samples:]
-    audio_windows = np.array_split(truncated_audio, num_windows)
-    min_length = min(len(array) for array in audio_windows)
-    audio_windows_truncated = [window[:min_length] for window in audio_windows]
-    audio_windows_array = np.vstack(audio_windows_truncated)
-    return audio_windows_array
-def generate_IO():
-    # Importing noise file names
-    with open(r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\recordings_dict.pkl","rb") as file:
-        orig_noise = pickle.load(file)["noise"]
-
-    # Initialization
-    audio_files = os.listdir(recordings_path) 
-    input_data = np.empty(shape=(0,window_len_sample_downsampled))
-    output_data = np.empty(shape=(0,window_len_sample_downsampled))
-
-    # Iterate over files and split into windows
-    noise_index=1
-    for file in audio_files:
-        audio_path=os.path.join(recordings_path,file)
-        audio_data, sample_rate = librosa.load(audio_path,sr=None)
-        audio_data_downsampled = librosa.resample(audio_data,orig_sr=sampling_freq,target_sr=downsampling_new_sr)
-        audio_windows = audio_windowing(audio_data_downsampled)
-        input_data=np.append(input_data,audio_windows,axis=0)
-
-        current_noise_file_name = orig_noise[noise_index-1]
-        current_noise_file = os.path.join(noise_path,current_noise_file_name)
-        noise_data, sample_rate = librosa.load(current_noise_file,sr=None)
-        repeat_factor = int(np.ceil(len(audio_data) / len(noise_data)))
-        noise_data_full_length = np.tile(noise_data, repeat_factor)[:len(audio_data)]
-        noise_data_full_length_downsampled = librosa.resample(noise_data_full_length,orig_sr=sampling_freq,target_sr=downsampling_new_sr)
-        noise_windows = audio_windowing(noise_data_full_length_downsampled)
-        output_data=np.append(output_data,noise_windows,axis=0)
-
-        if noise_index != num_noise_combinations:
-            noise_index+=1  
-        else:
-            noise_index = 1
-
-    return input_data, output_data
-def generate_spectrogram(input_data):
-    tf_inputs = {}
-
-    for i, datapoint in enumerate (input_data):
-        tf_inputs[i+1] = librosa.stft(datapoint, n_fft=256,hop_length=128)
-
-    num_freq_comp = tf_inputs[1].shape[0]
-    num_time_comp = tf_inputs[1].shape[1]
-
-    inputs_tensor = {k:torch.tensor(v,dtype=torch.float32).unsqueeze(0).unsqueeze(0) for k, v in tf_inputs.items()}
-
-    return inputs_tensor, num_freq_comp, num_time_comp
-def find_RMS_noise(output_data):
+    return duplicated_audio, duplicated_noise
+def find_RMS_noise(data):
     RMS_values = {}
-
-    for i, datapoint in enumerate (output_data):
-        RMS_values[i+1] = librosa.feature.rms(y=datapoint).mean()
-
+    for i, recording in enumerate (data.items()):
+        my_data = recording[1]
+        RMS_values[i] = librosa.feature.rms(y=np.array(my_data)).mean()
     return RMS_values
+def windowing(signal):
+    master_c = 0
+    windowed_data = {}
+    for i, rec in enumerate (signal.items()):
+        my_rec = rec[1]
+        num_windows = len(my_rec) // window_len_sample_downsampled
+        extra_samples = len(my_rec) % (num_windows*window_len_sample_downsampled)
+        truncated_rec = my_rec[extra_samples:]
+        rec_windows = np.array_split(truncated_rec, num_windows)
+        min_length = min(len(array) for array in rec_windows)
+        rec_windows_truncated = [window[:min_length] for window in rec_windows]
+        for arr in rec_windows_truncated:
+            windowed_data[master_c] = arr.tolist()
+            master_c+=1
+    return windowed_data
+
+
 class CNN(nn.Module):
-    def __init__(self,num_freq_comp,num_time_comp):
+    def __init__(self):
         super(CNN, self).__init__()
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels=16, kernel_size=3, stride=1, padding=1)
-        self.conv2 = nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=1)
-        self.conv3 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1)
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
+        self.conv1 = nn.Conv1d(in_channels=2, out_channels=16, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv1d(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=1)
+        self.conv3 = nn.Conv1d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1)
+        self.pool = nn.MaxPool1d(kernel_size=2, stride=2, padding=0)
         self.relu = nn.ReLU()
-        self.pool3 = nn.MaxPool2d(kernel_size=(2,1),stride=(2,1),padding=0)
-        self.flattened_size= self._get_flattened_size(num_freq_comp,num_time_comp)
+        self.pool3 = nn.MaxPool1d(kernel_size=2,stride=2,padding=0)
+        self.flattened_size= self._get_flattened_size()
         self.fc1 = nn.Linear(self.flattened_size,512)
         self.fc2= nn.Linear(512,128)
         self.fc3 = nn.Linear(128, 1)
         
-    def _get_flattened_size(self,num_freq_comp,num_time_comp):
-        x = torch.zeros(1,1,num_freq_comp,num_time_comp)
+    def _get_flattened_size(self):
+        x = torch.zeros(1,2,window_len_sample_downsampled) # one sample regardless the batch size, num channels, num timepoints
         x = self.pool(self.relu(self.conv1(x)))
         x = self.pool(self.relu(self.conv2(x)))
         x = self.pool3(self.relu(self.conv3(x)))
         return x.numel()
 
-    def forward(self,x,num_freq_comp,num_time_comp):
+    def forward(self,x):
         x=self.pool(self.relu(self.conv1(x)))
         x=self.pool(self.relu(self.conv2(x)))
         x=self.pool3(self.relu(self.conv3(x)))
 
-        x=x.view(x.size(0), -1)
+        x_dim = x.dim()
+        if x_dim==3:
+            x=x.view(x.size(0), -1)
+        else:
+            x=x.view(-1)
 
         x = self.relu(self.fc1(x))
         x = self.relu(self.fc2(x))
         x = self.fc3(x)
         return x
-    
 def plotting_performance(loss_values,title):
     plt.figure(figsize=(10,5))
     plt.plot(range(1,num_epochs+1), loss_values, marker = "o", label = "Training loss")
@@ -231,10 +196,9 @@ def plotting_results_general_training(error,predictions,gt,printing_label):
     #plt.show()
     plt.savefig(f"{printing_label} raw performance.png")
 def plotting_results_general_other(error,predictions,gt,printing_label):
-    error_ready1 = [element for array in error for element in array.tolist()]
-    error_ready2 = sum(error_ready1,[])
+    error_ready = [element for array in error for element in array.tolist()]
     plt.figure(figsize=(10,5))
-    plt.hist(error_ready2,bins=10)
+    plt.hist(error_ready,bins=10)
     plt.xlabel("Error [%]")
     plt.ylabel("Num of datapoints")
     #plt.title(title)
@@ -250,18 +214,16 @@ def plotting_results_general_other(error,predictions,gt,printing_label):
     #plt.show()
     plt.savefig(f"{printing_label} raw performance.png")
 class CustomDataset(Dataset):
-    def __init__(self,inputs_dict,labels_dict):
-        self.inputs = inputs_dict
-        self.labels = labels_dict
-        self.keys = list(inputs_dict.keys())
+    def __init__(self,inputs,labels):
+        self.inputs = inputs
+        self.labels = labels
     def __len__(self):
-        return(len(self.keys))
+        return(len(self.inputs))
     def __getitem__(self, idx):
-        key = self.keys[idx]
-        input_data = self.inputs[key]
-        label = self.labels[key]
+        input_data = self.inputs[idx]
+        label = self.labels[idx]
         return input_data, label
-def ML_train_model(num_freq_comp,num_time_comp,train_inputs,train_labels, val_inputs, val_labels):
+def ML_train_model(train_inputs,train_labels, val_inputs, val_labels):
     reg_criterion = nn.MSELoss()
     
     
@@ -269,7 +231,7 @@ def ML_train_model(num_freq_comp,num_time_comp,train_inputs,train_labels, val_in
     dataloader = DataLoader(dataset,batch_size=batch_size, shuffle=True)
 
 
-    model = CNN(num_freq_comp,num_time_comp)
+    model = CNN()
     reg_criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(),lr=0.001)
 
@@ -285,7 +247,7 @@ def ML_train_model(num_freq_comp,num_time_comp,train_inputs,train_labels, val_in
 
         for batch_idx, (inputs, targets) in enumerate(dataloader):
             optimizer.zero_grad()
-            outputs = model(inputs.squeeze(1),num_freq_comp,num_time_comp)
+            outputs = model(inputs.squeeze(1))
             loss_value = reg_criterion(outputs, targets)
             loss_value.backward()
             optimizer.step()
@@ -302,16 +264,16 @@ def ML_train_model(num_freq_comp,num_time_comp,train_inputs,train_labels, val_in
         avg_train_loss = running_train_loss / num_train_batches
         train_loss_values.append(avg_train_loss)
 
-    with open("model.pkl", "wb") as file:
-        pickle.dump(model, file)
-    with open("train_loss_values.pkl", "wb") as file:
-        pickle.dump(train_loss_values, file)
-    with open("error.pkl", "wb") as file:
-        pickle.dump(error, file)
-    with open("predictions.pkl", "wb") as file:
-        pickle.dump(predictions, file)
-    with open("gt.pkl", "wb") as file:
-        pickle.dump(gt, file)
+    # with open("model.pkl", "wb") as file:
+    #     pickle.dump(model, file)
+    # with open("train_loss_values.pkl", "wb") as file:
+    #     pickle.dump(train_loss_values, file)
+    # with open("error.pkl", "wb") as file:
+    #     pickle.dump(error, file)
+    # with open("predictions.pkl", "wb") as file:
+    #     pickle.dump(predictions, file)
+    # with open("gt.pkl", "wb") as file:
+    #     pickle.dump(gt, file)
 
 
     # with open("model.pkl","rb") as file:
@@ -338,11 +300,11 @@ def ML_train_model(num_freq_comp,num_time_comp,train_inputs,train_labels, val_in
     errors_val=[]
     all_pred=[]
     all_gt=[]
-    for key in val_inputs:
-        my_input = val_inputs[key].requires_grad_(True)
-        ground_truth_value = torch.tensor(val_labels[key])        
+    for i in range(0, len(val_inputs)):
+        my_input = val_inputs[i].requires_grad_(True)
+        ground_truth_value = torch.tensor(val_labels[i])        
 
-        predicted_value = model(my_input,num_freq_comp,num_time_comp)
+        predicted_value = model(my_input)
         loss_value = reg_criterion(predicted_value,ground_truth_value)
 
         running_val_loss += loss_value.item()
@@ -357,7 +319,7 @@ def ML_train_model(num_freq_comp,num_time_comp,train_inputs,train_labels, val_in
     plotting_results_general_other(errors_val,all_pred,all_gt,printing_label)
 
     return model
-def ML_test_model(model, num_freq_comp, num_time_comp, test_inputs, test_labels):
+def ML_test_model(model, test_inputs, test_labels):
     model.eval()
     test_loss = 0
     test_errors=[]
@@ -366,11 +328,11 @@ def ML_test_model(model, num_freq_comp, num_time_comp, test_inputs, test_labels)
     errors_test = []
     all_gt=[]
     all_pred=[]
-    for key in test_inputs:
-        my_input = test_inputs[key].requires_grad_(True)
-        ground_truth_value = torch.tensor(test_labels[key])        
+    for i in range(0, len(test_inputs)):
+        my_input = test_inputs[i].requires_grad_(True)
+        ground_truth_value = torch.tensor(test_labels[i])        
 
-        predicted_value = model(my_input,num_freq_comp,num_time_comp)
+        predicted_value = model(my_input)
         loss_value = reg_criterion(predicted_value,ground_truth_value)
 
         test_loss += loss_value.item()
@@ -391,10 +353,9 @@ def ML_test_model(model, num_freq_comp, num_time_comp, test_inputs, test_labels)
    
 
     return test_errors
-def data_splitting(data,labels):
-    keys = list(data.keys())
+def data_splitting(x, y, z):
+    keys = list(x.keys())
     random.shuffle(keys)
-
     train_end = int(train_ratio * len(keys))
     val_end = train_end + int(val_ratio * len(keys))
 
@@ -402,29 +363,70 @@ def data_splitting(data,labels):
     val_keys = keys[train_end:val_end]
     test_keys = keys[val_end:]
 
-    train_inputs = {key: data[key] for key in train_keys}
-    val_inputs = {key: data[key] for key in val_keys}
-    test_inputs = {key: data[key] for key in test_keys}
+    train_x = {key: x[key] for key in train_keys}
+    val_x = {key: x[key] for key in val_keys}
+    test_x = {key: x[key] for key in test_keys}
 
-    train_labels = {key: labels[key] for key in train_keys}
-    val_labels = {key: labels[key] for key in val_keys}
-    test_labels= {key: labels[key] for key in test_keys}
+    train_y = {key: y[key] for key in train_keys}
+    val_y = {key: y[key] for key in val_keys}
+    test_y = {key: y[key] for key in test_keys}
 
-    return train_inputs, val_inputs, test_inputs, train_labels, val_labels, test_labels
+    train_z = {key: z[key] for key in train_keys}
+    val_z= {key: z[key] for key in val_keys}
+    test_z= {key: z[key] for key in test_keys}
 
+    return train_x, val_x, test_x, train_y, val_y, test_y, train_z, val_z, test_z
+def data_prep_for_ML(channel1, channel2):
+    keys = sorted(channel1.keys())
+    data1_tensors = [torch.tensor(channel1[key]) for key in keys]
+    data2_tensors = [torch.tensor(channel2[key]) for key in keys]
+    
+    data1_batch = torch.stack(data1_tensors)
+    data2_batch = torch.stack(data2_tensors)
 
+    data1_batch = data1_batch.unsqueeze(1)
+    data2_batch = data2_batch.unsqueeze(1)
+
+    combined_data = torch.cat((data1_batch,data2_batch), dim=1)
+
+    return combined_data
 
 def run_CNN():
     ########################################### DATA IMPORT AND RESAMPLING
     audio_resampled, noise_resampled = resampling()
     transformed_audio = transfer_fun(audio_resampled)
     audio_after_gain, noise_after_gain = gain_fun(transformed_audio, noise_resampled)
-    mixed_signal = mixing_fun (audio_after_gain, noise_after_gain)
+    audio_dup, noise_dup = duplicating (audio_after_gain, noise_after_gain)
+    repeated_noise = repeat_noise(audio_dup, noise_dup)
+    mixed_signal = mixing_fun (audio_dup, repeated_noise)
+    audio_dup_orig, noise_dup_orig = duplicating (audio_resampled, noise_resampled)
+    windowed_mixed_signal = windowing(mixed_signal)   # X
+    windowed_audio = windowing(audio_dup_orig)        # y
+    audio_dup, noise_dup = duplicating (audio_resampled, noise_resampled)
+    repeated_noise = repeat_noise(audio_dup, noise_dup)
+    windowed_noise = windowing(repeated_noise)
+    labels = find_RMS_noise(windowed_noise)           # Z
+
+
+    train_x, val_x, test_x, train_y, val_y, test_y, train_z, val_z, test_z = data_splitting (windowed_mixed_signal, windowed_audio, labels)
+    
+    data_train_xy = data_prep_for_ML(train_x, train_y)
+    data_val_xy = data_prep_for_ML(val_x, val_y)
+    data_test_xy = data_prep_for_ML(test_x, test_y)
+
+    train_z_l= list(train_z.values())
+    val_z_l = list(val_z.values())
+    test_z_l = list(test_z.values())
+
+
+    model = ML_train_model(data_train_xy,train_z_l, data_val_xy, val_z_l)
+    test_errors = ML_test_model(model, data_test_xy, test_z_l)
+    
 
 
 
 
-    stop=1
+
 
     # input_data, output_data = generate_IO()
     # with open("input_data.pkl", "wb") as file:
@@ -437,19 +439,7 @@ def run_CNN():
     # with open(r"C:\Users\mn1059928\OneDrive - Bose Corporation\Documents\GitHub\CNN_Git\output_data.pkl","rb") as file:
     #     output_data = pickle.load(file)
 
-    ########################################### DATA IMPORT AND RESAMPLING
 
-
-
-
-
-    inputs_tensor, num_freq_comp, num_time_comp = generate_spectrogram(input_data)
-    labels = find_RMS_noise(output_data)
-
-    train_inputs, val_inputs, test_inputs, train_labels, val_labels, test_labels = data_splitting (inputs_tensor, labels)
-    
-    model = ML_train_model(num_freq_comp,num_time_comp,train_inputs,train_labels, val_inputs, val_labels)
-    test_errors = ML_test_model(model, num_freq_comp, num_time_comp, test_inputs, test_labels)
-    
+  
 if __name__ == "__main__":
     run_CNN()
