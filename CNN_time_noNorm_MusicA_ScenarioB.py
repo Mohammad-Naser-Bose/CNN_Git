@@ -17,12 +17,12 @@ from sklearn.preprocessing import StandardScaler
 
 ################################### Inputs
 recordings_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Audio_short"
-noise_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Noise_to_use"
+noise_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Noise_to_use_two"
 window_size_sec = 1  # in [s]
 sampling_freq = 44100  # in [Hz]  
 window_len_sample = window_size_sec * sampling_freq
-num_noise_combinations = 27
-num_epochs=4
+num_noise_combinations = 3
+num_epochs=200
 train_ratio = 0.6
 val_ratio = 0.2
 downsampling_new_sr = 344    #6890   # Ratio=64
@@ -124,9 +124,14 @@ def find_RMS_noise(data):
     RMS_values = {}
     for i, recording in enumerate (data.items()):
         my_data = recording[1]
-        RMS_values[i] = librosa.feature.rms(y=np.array(my_data)).mean()
-    return RMS_values
+        RMS_values [i] = np.sqrt(np.mean((np.array(my_data)**2)))
+    
+    RMS_values_new = {}
+    for key, value in RMS_values.items():
+        RMS_values_new[key] = np.array(value, dtype= np.float32)
+    return RMS_values_new
 def find_RMS_noise_with_norm(data_1, data_2, data_3):
+    # Update to Numpy
     RMS_values_1 = {}
     for i, recording in enumerate (data_1.items()):
         my_data = recording[1]
@@ -443,10 +448,10 @@ def run_CNN():
     ML_testing(model, data_test_xy, test_z_l)
     
     stop=1
-    # Normalization
-    # Same song
-    # Other features than RMS
+    
     # Different architecture
+    # Other features than RMS or actual data
+    # Return back parameters
 
 if __name__ == "__main__":
     run_CNN()
