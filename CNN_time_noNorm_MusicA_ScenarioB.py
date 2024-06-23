@@ -21,7 +21,7 @@ noise_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Noise_to_us
 window_size_sec = 1  # in [s]
 sampling_freq = 44100  # in [Hz]  
 window_len_sample = window_size_sec * sampling_freq
-num_noise_combinations = 10
+num_noise_combinations = 2
 num_epochs=25
 train_ratio = 0.6
 val_ratio = 0.2
@@ -33,7 +33,7 @@ filter_num_coeff = [1]
 filter_dem_coeff = [1, 1]
 audio_gain = 10 # dB
 noise_gain = 5 # dB
-normalization_flag = False
+normalization_flag = True
 ################################### Main
 def loading_data(dir):
     files = os.listdir(dir) 
@@ -124,27 +124,51 @@ def find_RMS_noise(data):
     RMS_values = {}
     for i, recording in enumerate (data.items()):
         my_data = recording[1]
-        RMS_values [i] = np.sqrt(np.mean((np.array(my_data)**2)))
+        min_val = np.min(my_data)
+        max_val = np.max(my_data)
+        my_data_amp_nor = (my_data-min_val)/(max_val-min_val)
+        RMS_values [i] = np.sqrt(np.mean((np.array(my_data_amp_nor)**2)))
     
     RMS_values_new = {}
     for key, value in RMS_values.items():
         RMS_values_new[key] = np.array(value, dtype= np.float32)
     return RMS_values_new
 def find_RMS_noise_with_norm(data_1, data_2, data_3):
-    # Update to Numpy
     RMS_values_1 = {}
     for i, recording in enumerate (data_1.items()):
         my_data = recording[1]
-        RMS_values_1[i] = librosa.feature.rms(y=np.array(my_data)).mean()
+        min_val = np.min(my_data)
+        max_val = np.max(my_data)
+        my_data_amp_nor = (my_data-min_val)/(max_val-min_val)
+        RMS_values_1 [i] = np.sqrt(np.mean((np.array(my_data_amp_nor)**2)))
+    RMS_values_new_1 = {}
+    for key, value in RMS_values_1.items():
+        RMS_values_new_1[key] = np.array(value, dtype= np.float32)
+
     RMS_values_2 = {}
     for i, recording in enumerate (data_2.items()):
         my_data = recording[1]
-        RMS_values_2[i] = librosa.feature.rms(y=np.array(my_data)).mean()
+        min_val = np.min(my_data)
+        max_val = np.max(my_data)
+        my_data_amp_nor = (my_data-min_val)/(max_val-min_val)
+        RMS_values_2 [i] = np.sqrt(np.mean((np.array(my_data_amp_nor)**2)))
+    RMS_values_new_2 = {}
+    for key, value in RMS_values_2.items():
+        RMS_values_new_2[key] = np.array(value, dtype= np.float32)
+
     RMS_values_3 = {}
     for i, recording in enumerate (data_3.items()):
         my_data = recording[1]
-        RMS_values_3[i] = librosa.feature.rms(y=np.array(my_data)).mean()
-    return RMS_values_1, RMS_values_2, RMS_values_3
+        min_val = np.min(my_data)
+        max_val = np.max(my_data)
+        my_data_amp_nor = (my_data-min_val)/(max_val-min_val)
+        RMS_values_3 [i] = np.sqrt(np.mean((np.array(my_data_amp_nor)**2)))
+    RMS_values_new_3 = {}
+    for key, value in RMS_values_3.items():
+        RMS_values_new_3[key] = np.array(value, dtype= np.float32)
+
+
+    return RMS_values_new_1, RMS_values_new_2, RMS_values_new_3
 def data_prep_for_ML(channel1, channel2):
     keys = sorted(channel1.keys())
     data1_tensors = [torch.tensor(channel1[key]) for key in keys]
