@@ -33,7 +33,7 @@ filter_num_coeff = [1]
 filter_dem_coeff = [1, 1]
 audio_gain = 10 # dB
 noise_gain = 5 # dB
-normalization_flag = True
+normalization_flag = False
 ################################### Main
 def loading_data(dir):
     files = os.listdir(dir) 
