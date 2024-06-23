@@ -21,8 +21,8 @@ noise_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Noise_to_us
 window_size_sec = 1  # in [s]
 sampling_freq = 44100  # in [Hz]  
 window_len_sample = window_size_sec * sampling_freq
-num_noise_combinations = 3
-num_epochs=200
+num_noise_combinations = 1
+num_epochs=50
 train_ratio = 0.6
 val_ratio = 0.2
 downsampling_new_sr = 344    #6890   # Ratio=64
@@ -186,12 +186,13 @@ def data_splitting(x, y, z):
 class CNN(nn.Module):
     def __init__(self):
         super(CNN, self).__init__()
-        self.conv1 = nn.Conv1d(in_channels=2, out_channels=16, kernel_size=2, stride=1, padding=1)
-        self.conv2 = nn.Conv1d(in_channels=16, out_channels=32, kernel_size=2, stride=1, padding=1)
-        self.conv3 = nn.Conv1d(in_channels=32, out_channels=64, kernel_size=2, stride=1, padding=1)
+        self.conv1 = nn.Conv1d(in_channels=2, out_channels=16, kernel_size=2, stride=1, padding=1, dilation=2)
+        self.conv2 = nn.Conv1d(in_channels=16, out_channels=32, kernel_size=2, stride=1, padding=1, dilation=2)
+        self.conv3 = nn.Conv1d(in_channels=32, out_channels=64, kernel_size=2, stride=1, padding=1, dilation=2)
+        self.conv4 = nn.Conv1d(in_channels=64, out_channels=128, kernel_size=2, stride=1, padding=1, dilation=2)
         self.pool = nn.MaxPool1d(kernel_size=2, stride=2, padding=0)
-        self.relu = nn.ReLU()
-        self.pool3 = nn.MaxPool1d(kernel_size=2,stride=2,padding=0)
+        self.relu = nn.LeakyReLU(negative_slope=0.01)
+        self.pool4 = nn.MaxPool1d(kernel_size=2,stride=2,padding=0)
         self.flattened_size= self._get_flattened_size()
         self.fc1 = nn.Linear(self.flattened_size,512)
         self.fc2= nn.Linear(512,128)
@@ -201,14 +202,15 @@ class CNN(nn.Module):
         x = torch.zeros(1,2,window_len_sample_downsampled) # one sample regardless the batch size, num channels, num timepoints
         x = self.pool(self.relu(self.conv1(x)))
         x = self.pool(self.relu(self.conv2(x)))
-        x = self.pool3(self.relu(self.conv3(x)))
+        x = self.pool(self.relu(self.conv3(x)))
+        x = self.pool4(self.relu(self.conv4(x)))
         return x.numel()
 
     def forward(self,x):
         x=self.pool(self.relu(self.conv1(x)))
         x=self.pool(self.relu(self.conv2(x)))
-        x=self.pool3(self.relu(self.conv3(x)))
-
+        x=self.pool(self.relu(self.conv3(x)))
+        x=self.pool4(self.relu(self.conv4(x)))
         x_dim = x.dim()
         if x_dim==3:
             x=x.view(x.size(0), -1)
