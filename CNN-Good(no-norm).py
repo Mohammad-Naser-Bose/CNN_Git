@@ -18,10 +18,10 @@ from sklearn.preprocessing import StandardScaler
 ################################### Inputs
 recordings_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Audio_short"
 noise_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Noise_to_use_two"
-window_size_sec = 1  # in [s]
+window_size_sec = 10  # in [s]
 sampling_freq = 44100  # in [Hz]  
 window_len_sample = window_size_sec * sampling_freq
-num_noise_combinations = 2
+num_noise_combinations = 27
 num_epochs=25
 train_ratio = 0.6
 val_ratio = 0.2
@@ -137,9 +137,6 @@ def find_RMS_noise_with_norm(data_1, data_2, data_3):
     RMS_values_1 = {}
     for i, recording in enumerate (data_1.items()):
         my_data = recording[1]
-        min_val = np.min(my_data)
-        max_val = np.max(my_data)
-        my_data_amp_nor = (my_data-min_val)/(max_val-min_val)
         RMS_values_1 [i] = np.sqrt(np.mean((np.array(my_data_amp_nor)**2)))
     RMS_values_new_1 = {}
     for key, value in RMS_values_1.items():
@@ -148,9 +145,6 @@ def find_RMS_noise_with_norm(data_1, data_2, data_3):
     RMS_values_2 = {}
     for i, recording in enumerate (data_2.items()):
         my_data = recording[1]
-        min_val = np.min(my_data)
-        max_val = np.max(my_data)
-        my_data_amp_nor = (my_data-min_val)/(max_val-min_val)
         RMS_values_2 [i] = np.sqrt(np.mean((np.array(my_data_amp_nor)**2)))
     RMS_values_new_2 = {}
     for key, value in RMS_values_2.items():
@@ -159,9 +153,6 @@ def find_RMS_noise_with_norm(data_1, data_2, data_3):
     RMS_values_3 = {}
     for i, recording in enumerate (data_3.items()):
         my_data = recording[1]
-        min_val = np.min(my_data)
-        max_val = np.max(my_data)
-        my_data_amp_nor = (my_data-min_val)/(max_val-min_val)
         RMS_values_3 [i] = np.sqrt(np.mean((np.array(my_data_amp_nor)**2)))
     RMS_values_new_3 = {}
     for key, value in RMS_values_3.items():
