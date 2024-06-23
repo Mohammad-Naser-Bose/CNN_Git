@@ -21,8 +21,8 @@ noise_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Noise_to_us
 window_size_sec = 1  # in [s]
 sampling_freq = 44100  # in [Hz]  
 window_len_sample = window_size_sec * sampling_freq
-num_noise_combinations = 1
-num_epochs=50
+num_noise_combinations = 10
+num_epochs=25
 train_ratio = 0.6
 val_ratio = 0.2
 downsampling_new_sr = 344    #6890   # Ratio=64
@@ -194,9 +194,13 @@ class CNN(nn.Module):
         self.relu = nn.LeakyReLU(negative_slope=0.01)
         self.pool4 = nn.MaxPool1d(kernel_size=2,stride=2,padding=0)
         self.flattened_size= self._get_flattened_size()
-        self.fc1 = nn.Linear(self.flattened_size,512)
-        self.fc2= nn.Linear(512,128)
-        self.fc3 = nn.Linear(128, 1)
+        self.fc1 = nn.Linear(self.flattened_size,1024)
+        self.fc2= nn.Linear(1024,512)
+        self.fc3= nn.Linear(512,256)
+        self.fc4= nn.Linear(256,128)
+        self.fc5= nn.Linear(128,64)
+        self.fc6= nn.Linear(64,32)
+        self.fc7 = nn.Linear(32, 1)
         
     def _get_flattened_size(self):
         x = torch.zeros(1,2,window_len_sample_downsampled) # one sample regardless the batch size, num channels, num timepoints
@@ -219,7 +223,11 @@ class CNN(nn.Module):
 
         x = self.relu(self.fc1(x))
         x = self.relu(self.fc2(x))
-        x = self.fc3(x)
+        x = self.relu(self.fc3(x))
+        x = self.relu(self.fc4(x))
+        x = self.relu(self.fc5(x))
+        x = self.relu(self.fc6(x))
+        x = self.fc7(x)
         return x
 class CustomDataset(Dataset):
     def __init__(self,inputs,labels):
