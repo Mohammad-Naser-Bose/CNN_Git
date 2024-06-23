@@ -195,9 +195,9 @@ def data_splitting(x, y, z):
 
     return train_x, val_x, test_x, train_y, val_y, test_y, train_z, val_z, test_z
 
-class CNN(nn.Module):
+class NN(nn.Module):
     def __init__(self):
-        super(CNN, self).__init__()
+        super(NN, self).__init__()
         self.relu = nn.LeakyReLU(negative_slope=0.01)
         self.fc1 = nn.Linear(6880,4096)
         self.fc2 = nn.Linear(4096,2048)
@@ -250,7 +250,7 @@ def ML_training(train_inputs,train_labels):
     dataloader = DataLoader(dataset,batch_size=batch_size, shuffle=True)
 
     reg_criterion = nn.MSELoss()
-    model = CNN()
+    model = NN()
     optimizer = optim.Adam(model.parameters(),lr=0.001)
 
     train_loss_values = []
@@ -412,7 +412,7 @@ def plotting_results_general_other(error,predictions,gt,printing_label):
 
 
 
-def run_CNN():
+def run_NN():
     # Preprocessing
     Data_A = loading_data(noise_dir)
     Data_B = resampling(Data_A)
@@ -467,4 +467,4 @@ def run_CNN():
     # Return back parameters
 
 if __name__ == "__main__":
-    run_CNN()
+    run_NN()
