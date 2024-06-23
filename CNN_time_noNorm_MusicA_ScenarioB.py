@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader, TensorDataset, Dataset
 import IPython.display as ipd
 import sounddevice as sd
 import scipy.signal as signal
+from sklearn.preprocessing import StandardScaler
 
 ################################### Inputs
 recordings_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Audio_short"
@@ -32,7 +33,7 @@ filter_num_coeff = [1]
 filter_dem_coeff = [1, 1]
 audio_gain = 10 # dB
 noise_gain = 5 # dB
-
+normalization_flag = False
 ################################### Main
 def loading_data(dir):
     files = os.listdir(dir) 
@@ -103,13 +104,42 @@ def windowing(signal):
             windowed_data[master_c] = arr.tolist()
             master_c+=1
     return windowed_data
+def normalization (train_x_no_norm, val_x_no_norm, test_x_no_norm):
+
+    all_windows_training = np.concatenate ([np.array(value) for value in train_x_no_norm.values()])
+    scaler = StandardScaler()
+    scaler.fit(all_windows_training.reshape(-1,1))
+    normalized_training_windows = {key:scaler.transform(np.array(value).reshape(-1,1)).flatten().tolist() for key, value in train_x_no_norm.items()}
+
+    normalized_validation_windows = {key:scaler.transform(np.array(value).reshape(-1,1)).flatten().tolist() for key, value in val_x_no_norm.items()}
+
+    normalized_testing_windows = {key:scaler.transform(np.array(value).reshape(-1,1)).flatten().tolist() for key, value in test_x_no_norm.items()}
+
+    return normalized_training_windows, normalized_validation_windows, normalized_testing_windows
+
+
+
+    return 
 def find_RMS_noise(data):
     RMS_values = {}
     for i, recording in enumerate (data.items()):
         my_data = recording[1]
         RMS_values[i] = librosa.feature.rms(y=np.array(my_data)).mean()
     return RMS_values
-
+def find_RMS_noise_with_norm(data_1, data_2, data_3):
+    RMS_values_1 = {}
+    for i, recording in enumerate (data_1.items()):
+        my_data = recording[1]
+        RMS_values_1[i] = librosa.feature.rms(y=np.array(my_data)).mean()
+    RMS_values_2 = {}
+    for i, recording in enumerate (data_2.items()):
+        my_data = recording[1]
+        RMS_values_2[i] = librosa.feature.rms(y=np.array(my_data)).mean()
+    RMS_values_3 = {}
+    for i, recording in enumerate (data_3.items()):
+        my_data = recording[1]
+        RMS_values_3[i] = librosa.feature.rms(y=np.array(my_data)).mean()
+    return RMS_values_1, RMS_values_2, RMS_values_3
 def data_prep_for_ML(channel1, channel2):
     keys = sorted(channel1.keys())
     data1_tensors = [torch.tensor(channel1[key]) for key in keys]
@@ -376,7 +406,8 @@ def run_CNN():
     Data_J = concatenating_noise(Data_I, Data_H)
 
     Data_K = mixing(Data_I, Data_J)
-    Data_X = windowing(Data_K)
+    Data_X= windowing(Data_K)
+    
 
     Data_L, _ = duplicating_recordings(Data_E, Data_C)
     Data_Y = windowing(Data_L)
@@ -384,11 +415,24 @@ def run_CNN():
     _ , Data_M = duplicating_recordings(data_G, Data_B)
     Data_N = concatenating_noise(Data_I, Data_M)
     Data_O = windowing(Data_N) 
-    Data_Z = find_RMS_noise(Data_O)         
+
+    
+           
 
     # Data prep for ML work
-    train_x, val_x, test_x, train_y, val_y, test_y, train_z, val_z, test_z = data_splitting (Data_X, Data_Y, Data_Z)
     
+    if normalization_flag == True:
+        train_x_no_norm, val_x_no_norm, test_x_no_norm, train_y_no_norm, val_y_no_norm, test_y_no_norm, train_z_no_norm, val_z_no_norm, test_z_no_norm = data_splitting (Data_X, Data_Y, Data_O)
+
+        train_x, val_x, test_x = normalization (train_x_no_norm, val_x_no_norm, test_x_no_norm)
+        train_y, val_y, test_y = normalization (train_y_no_norm, val_y_no_norm, test_y_no_norm)
+
+        train_z_full_data, val_z_full_data, test_z_full_data = normalization (train_z_no_norm, val_z_no_norm, test_z_no_norm)
+        train_z, val_z, test_z = find_RMS_noise_with_norm(train_z_full_data, val_z_full_data, test_z_full_data)  
+    else:
+        Data_Z = find_RMS_noise(Data_O) 
+        train_x, val_x, test_x, train_y, val_y, test_y, train_z, val_z, test_z = data_splitting (Data_X, Data_Y, Data_Z)
+
     data_train_xy = data_prep_for_ML(train_x, train_y); data_val_xy = data_prep_for_ML(val_x, val_y); data_test_xy = data_prep_for_ML(test_x, test_y)
 
     train_z_l= list(train_z.values()); val_z_l = list(val_z.values()); test_z_l = list(test_z.values())
