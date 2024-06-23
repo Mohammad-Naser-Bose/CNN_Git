@@ -17,16 +17,16 @@ import scipy.signal as signal
 ################################### Inputs
 recordings_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Audio_short"
 noise_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Noise_to_use"
-window_size_sec = 4  # in [s]
+window_size_sec = 1  # in [s]
 sampling_freq = 44100  # in [Hz]  
 window_len_sample = window_size_sec * sampling_freq
 num_noise_combinations = 27
-num_epochs=5
-train_ratio = 0.8
-val_ratio = 0.1
-downsampling_new_sr = 6890   # Ratio=64
+num_epochs=4
+train_ratio = 0.6
+val_ratio = 0.2
+downsampling_new_sr = 344    #6890   # Ratio=64
 window_len_sample_downsampled = window_size_sec * downsampling_new_sr
-batch_size = 20
+batch_size = 2
 use_filter=False
 filter_num_coeff = [1]
 filter_dem_coeff = [1, 1]
@@ -151,9 +151,9 @@ def data_splitting(x, y, z):
 class CNN(nn.Module):
     def __init__(self):
         super(CNN, self).__init__()
-        self.conv1 = nn.Conv1d(in_channels=2, out_channels=16, kernel_size=3, stride=1, padding=1)
-        self.conv2 = nn.Conv1d(in_channels=16, out_channels=32, kernel_size=3, stride=1, padding=1)
-        self.conv3 = nn.Conv1d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1)
+        self.conv1 = nn.Conv1d(in_channels=2, out_channels=16, kernel_size=2, stride=1, padding=1)
+        self.conv2 = nn.Conv1d(in_channels=16, out_channels=32, kernel_size=2, stride=1, padding=1)
+        self.conv3 = nn.Conv1d(in_channels=32, out_channels=64, kernel_size=2, stride=1, padding=1)
         self.pool = nn.MaxPool1d(kernel_size=2, stride=2, padding=0)
         self.relu = nn.ReLU()
         self.pool3 = nn.MaxPool1d(kernel_size=2,stride=2,padding=0)
@@ -337,7 +337,7 @@ def plotting_results_general_training(error,predictions,gt,printing_label):
 def plotting_results_general_other(error,predictions,gt,printing_label):
     error_ready = [element for array in error for element in array.tolist()]
     plt.figure(figsize=(10,5))
-    plt.hist(error_ready,bins=10)
+    plt.hist(error_ready,bins=30)
     plt.xlabel("Error [%]")
     plt.ylabel("Num of datapoints")
     #plt.title(title)
@@ -398,6 +398,11 @@ def run_CNN():
     ML_validating(model, data_val_xy, val_z_l)
     ML_testing(model, data_test_xy, test_z_l)
     
+    stop=1
+    # Normalization
+    # Same song
+    # Other features than RMS
+    # Different architecture
 
 if __name__ == "__main__":
     run_CNN()
