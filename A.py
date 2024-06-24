@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader, TensorDataset, Dataset
 import IPython.display as ipd
 import sounddevice as sd
 import scipy.signal as signal
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 
 ################################### Inputs
 recordings_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Audio_short"
@@ -33,7 +33,7 @@ filter_num_coeff = [1]
 filter_dem_coeff = [1, 1]
 audio_gain = 10 # dB
 noise_gain = 5 # dB
-normalization_flag = False
+normalization_flag = True
 ################################### Main
 def loading_data(dir):
     files = os.listdir(dir) 
@@ -104,22 +104,18 @@ def windowing(signal):
             windowed_data[master_c] = arr.tolist()
             master_c+=1
     return windowed_data
-def normalization (train_x_no_norm, val_x_no_norm, test_x_no_norm):
+def normalization (train_no_norm, val_no_norm, test_no_norm):
 
-    all_windows_training = np.concatenate ([np.array(value) for value in train_x_no_norm.values()])
-    scaler = StandardScaler()
+    all_windows_training = np.concatenate ([np.array(value) for value in train_no_norm.values()])
+    scaler = MinMaxScaler()
     scaler.fit(all_windows_training.reshape(-1,1))
-    normalized_training_windows = {key:scaler.transform(np.array(value).reshape(-1,1)).flatten().tolist() for key, value in train_x_no_norm.items()}
-
-    normalized_validation_windows = {key:scaler.transform(np.array(value).reshape(-1,1)).flatten().tolist() for key, value in val_x_no_norm.items()}
-
-    normalized_testing_windows = {key:scaler.transform(np.array(value).reshape(-1,1)).flatten().tolist() for key, value in test_x_no_norm.items()}
+    normalized_training_windows = {key:scaler.transform(np.array(value).reshape(-1,1)).flatten().tolist() for key, value in train_no_norm.items()}
+    normalized_validation_windows = {key:scaler.transform(np.array(value).reshape(-1,1)).flatten().tolist() for key, value in val_no_norm.items()}
+    normalized_testing_windows = {key:scaler.transform(np.array(value).reshape(-1,1)).flatten().tolist() for key, value in test_no_norm.items()}
 
     return normalized_training_windows, normalized_validation_windows, normalized_testing_windows
 
 
-
-    return 
 def find_RMS_noise(data):
     RMS_values = {}
     for i, recording in enumerate (data.items()):
@@ -382,25 +378,16 @@ def plotting_performance(loss_values,title):
     plt.ylabel("Loss")
     plt.title(title)
     #plt.show()
-    plt.savefig("Training Error_per_Epoch.png")
-def plotting_results(errors,title):
-    errors_ready = [error.item() for error in errors]
-    plt.figure(figsize=(10,5))
-    plt.hist(errors_ready,bins=10)
-    plt.xlabel("Error [%]")
-    plt.ylabel("Num of datapoints")
-    plt.title(title)
-    #plt.show()
-    plt.savefig(f"{title}.png")
+    plt.savefig("Training error_per_Epoch.png")
 def plotting_results_general_training(error,predictions,gt,printing_label):
     error_ready = [element for array in error for element in array.tolist()]
-    plt.figure(figsize=(10,5))
-    plt.hist(error_ready,bins=100)
-    plt.xlabel("Error [%]")
-    plt.ylabel("Num of datapoints")
-    #plt.title(title)
-    #plt.show()
-    plt.savefig(f"{printing_label} histogram performance.png")
+    # plt.figure(figsize=(10,5))
+    # plt.hist(error_ready,bins=100)
+    # plt.xlabel("Error [%]")
+    # plt.ylabel("Num of datapoints")
+    # #plt.title(title)
+    # #plt.show()
+    # plt.savefig(f"{printing_label} histogram performance.png")
 
     real_ready = [element for array in gt for element in array.tolist()]
     pred_ready = [element for array in predictions for element in array.tolist()]
@@ -413,13 +400,13 @@ def plotting_results_general_training(error,predictions,gt,printing_label):
     plt.savefig(f"{printing_label} raw performance.png")
 def plotting_results_general_other(error,predictions,gt,printing_label):
     error_ready = [element for array in error for element in array.tolist()]
-    plt.figure(figsize=(10,5))
-    plt.hist(error_ready,bins=30)
-    plt.xlabel("Error [%]")
-    plt.ylabel("Num of datapoints")
-    #plt.title(title)
-    #plt.show()
-    plt.savefig(f"{printing_label} histogram performance.png")
+    # plt.figure(figsize=(10,5))
+    # plt.hist(error_ready,bins=30)
+    # plt.xlabel("Error [%]")
+    # plt.ylabel("Num of datapoints")
+    # #plt.title(title)
+    # #plt.show()
+    # plt.savefig(f"{printing_label} histogram performance.png")
 
     real_ready = [value.item() for value in gt]
     pred_ready = [value.item() for value in predictions]
@@ -440,7 +427,7 @@ def plotting_results_general_other(error,predictions,gt,printing_label):
 
 
 def run_CNN():
-    # Preprocessing
+
     Data_A = loading_data(noise_dir)
     Data_B = resampling(Data_A)
     Data_C = adding_gain(Data_B, noise_gain)
@@ -463,37 +450,31 @@ def run_CNN():
     Data_N = concatenating_noise(Data_I, Data_M)
     Data_O = windowing(Data_N) 
 
+    # Splitting and normalization
     
-           
-
-    # Data prep for ML work
-    
-    if normalization_flag == True:
-        train_x_no_norm, val_x_no_norm, test_x_no_norm, train_y_no_norm, val_y_no_norm, test_y_no_norm, train_z_no_norm, val_z_no_norm, test_z_no_norm = data_splitting (Data_X, Data_Y, Data_O)
-
-        train_x, val_x, test_x = normalization (train_x_no_norm, val_x_no_norm, test_x_no_norm)
-        train_y, val_y, test_y = normalization (train_y_no_norm, val_y_no_norm, test_y_no_norm)
-
-        train_z_full_data, val_z_full_data, test_z_full_data = normalization (train_z_no_norm, val_z_no_norm, test_z_no_norm)
-        train_z, val_z, test_z = find_RMS_noise_with_norm(train_z_full_data, val_z_full_data, test_z_full_data)  
-    else:
+    if normalization_flag == False:
         Data_Z = find_RMS_noise(Data_O) 
-        train_x, val_x, test_x, train_y, val_y, test_y, train_z, val_z, test_z = data_splitting (Data_X, Data_Y, Data_Z)
+        train_x_norm, val_x_norm, test_x_norm, train_y_norm, val_y_norm, test_y_norm, train_z_norm, val_z_norm, test_z_norm = data_splitting (Data_X, Data_Y, Data_Z)
+    else:
+        train_x_no_norm, val_x_no_norm, test_x_no_norm, train_y_no_norm, val_y_no_norm, test_y_no_norm, train_o_no_norm, val_o_no_norm, test_o_no_norm = data_splitting (Data_X, Data_Y, Data_O)
+   
+        train_x_norm, val_x_norm, test_x_norm = normalization (train_x_no_norm, val_x_no_norm, test_x_no_norm)
+        train_y_norm, val_y_norm, test_y_norm = normalization (train_y_no_norm, val_y_no_norm, test_y_no_norm)
+        train_o_norm, val_o_norm, test_o_norm = normalization (train_o_no_norm, val_o_no_norm, test_o_no_norm)
+        
+        train_z_norm, val_z_norm, test_z_norm  = find_RMS_noise_with_norm(train_o_norm, val_o_norm, test_o_norm )  
 
-    data_train_xy = data_prep_for_ML(train_x, train_y); data_val_xy = data_prep_for_ML(val_x, val_y); data_test_xy = data_prep_for_ML(test_x, test_y)
 
-    train_z_l= list(train_z.values()); val_z_l = list(val_z.values()); test_z_l = list(test_z.values())
+    data_train_xy = data_prep_for_ML(train_x_norm, train_y_norm); data_val_xy = data_prep_for_ML(val_x_norm, val_y_norm); data_test_xy = data_prep_for_ML(test_x_norm, test_y_norm)
+
+    train_z_norm_l= list(train_z_norm.values()); val_z_norm_l = list(val_z_norm.values()); test_z_norm_l= list(test_z_norm.values())
 
     # ML work
-    model = ML_training(data_train_xy,train_z_l)
-    ML_validating(model, data_val_xy, val_z_l)
-    ML_testing(model, data_test_xy, test_z_l)
+    model = ML_training(data_train_xy,train_z_norm_l)
+    ML_validating(model, data_val_xy, val_z_norm_l)
+    ML_testing(model, data_test_xy, test_z_norm_l)
     
-    stop=1
     
-    # Different architecture
-    # Other features than RMS or actual data
-    # Return back parameters
 
 if __name__ == "__main__":
     run_CNN()
