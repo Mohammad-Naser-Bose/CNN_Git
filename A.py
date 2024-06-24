@@ -17,16 +17,13 @@ from sklearn.preprocessing import MinMaxScaler
 
 ################################### Inputs
 recordings_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Audio_short"
-noise_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Noise_to_use_two"
+noise_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Noise_to_use_temp"
 window_size_sec = 10  # in [s]
 sampling_freq = 44100  # in [Hz]  
-window_len_sample = window_size_sec * sampling_freq
-num_noise_combinations = 27
-num_epochs=5
+num_epochs=2
 train_ratio = 0.6
 val_ratio = 0.2
 downsampling_new_sr = 344  #6890   # Ratio=64
-window_len_sample_downsampled = window_size_sec * downsampling_new_sr
 batch_size = 2
 use_filter=False
 filter_num_coeff = [1]
@@ -34,6 +31,10 @@ filter_dem_coeff = [1, 1]
 audio_gain = 10 # dB
 noise_gain = 5 # dB
 normalization_flag = True
+ML_type = "NN"
+window_len_sample = window_size_sec * sampling_freq
+window_len_sample_downsampled = window_size_sec * downsampling_new_sr
+noise_files = os.listdir(noise_dir); num_noise_combinations=sum(os.path.isfile(os.path.join(noise_dir,f )) for f in noise_files)
 ################################### Main
 def loading_data(dir):
     files = os.listdir(dir) 
@@ -257,6 +258,45 @@ class CNN(nn.Module):
         x = self.relu(self.fc10(x))
         x = self.fc11(x)
         return x
+class NN(nn.Module):
+    def __init__(self):
+        super(NN, self).__init__()
+        self.relu = nn.LeakyReLU(negative_slope=0.01)
+        self.fc1 = nn.Linear(6880,4096)
+        self.fc2 = nn.Linear(4096,2048)
+        self.fc3 = nn.Linear(2048,1024)
+        self.fc4 = nn.Linear(1024,512)
+        self.fc5= nn.Linear(512,256)
+        self.fc6= nn.Linear(256,128)
+        self.fc7= nn.Linear(128,64)
+        self.fc8= nn.Linear(64,32)
+        self.fc9= nn.Linear(32,16)
+        self.fc10= nn.Linear(16,8)
+        self.fc11= nn.Linear(8,4)
+        self.fc12= nn.Linear(4,2)
+        self.fc13= nn.Linear(2, 1)
+        
+    def forward(self,x):
+        x_dim = x.dim()
+        if x_dim==3:
+            x=x.view(x.size(0), -1)
+        else:
+            x=x.view(-1)
+
+        x = self.relu(self.fc1(x))
+        x = self.relu(self.fc2(x))
+        x = self.relu(self.fc3(x))
+        x = self.relu(self.fc4(x))
+        x = self.relu(self.fc5(x))
+        x = self.relu(self.fc6(x))
+        x = self.relu(self.fc7(x))
+        x = self.relu(self.fc8(x))
+        x = self.relu(self.fc9(x))
+        x = self.relu(self.fc10(x))
+        x = self.relu(self.fc11(x))
+        x = self.relu(self.fc12(x))
+        x = self.fc13(x)
+        return x
 class CustomDataset(Dataset):
     def __init__(self,inputs,labels):
         self.inputs = inputs
@@ -273,7 +313,7 @@ def ML_training(train_inputs,train_labels):
     dataloader = DataLoader(dataset,batch_size=batch_size, shuffle=True)
 
     reg_criterion = nn.MSELoss()
-    model = CNN()
+    model = my_ML_model 
     optimizer = optim.Adam(model.parameters(),lr=0.001)
 
     train_loss_values = []
@@ -393,8 +433,11 @@ def plotting_results_general_training(error,predictions,gt,printing_label):
     pred_ready = [element for array in predictions for element in array.tolist()]
     diff = [a-b for a,b in zip(real_ready,pred_ready)]
     plt.figure(figsize=(10,5))
-    plt.plot(real_ready)
-    plt.plot(pred_ready)
+    plt.plot(real_ready,label="orig")
+    plt.plot(pred_ready,label="pred")
+    plt.legend()
+    plt.xlabel("datapoint")
+    plt.ylabel("Noise RMS")
     #plt.title(title)
     #plt.show()
     plt.savefig(f"{printing_label} raw performance.png")
@@ -411,8 +454,11 @@ def plotting_results_general_other(error,predictions,gt,printing_label):
     real_ready = [value.item() for value in gt]
     pred_ready = [value.item() for value in predictions]
     plt.figure(figsize=(10,5))
-    plt.plot(real_ready)
-    plt.plot(pred_ready)
+    plt.plot(real_ready,label="orig")
+    plt.plot(pred_ready,label="pred")
+    plt.legend()
+    plt.xlabel("datapoint")
+    plt.ylabel("Noise RMS")
     #plt.title(title)
     #plt.show()
     plt.savefig(f"{printing_label} raw performance.png")
@@ -426,7 +472,7 @@ def plotting_results_general_other(error,predictions,gt,printing_label):
 
 
 
-def run_CNN():
+def run_ML():
 
     Data_A = loading_data(noise_dir)
     Data_B = resampling(Data_A)
@@ -477,4 +523,8 @@ def run_CNN():
     
 
 if __name__ == "__main__":
-    run_CNN()
+    if ML_type == "CNN":
+        my_ML_model = CNN()
+    else:
+        my_ML_model = NN()
+    run_ML()
