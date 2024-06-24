@@ -16,22 +16,22 @@ import scipy.signal as signal
 from sklearn.preprocessing import MinMaxScaler
 
 ################################### Inputs
-recordings_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Audio_short"
+recordings_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Audio_short_temp"
 noise_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Noise_to_use_temp"
 window_size_sec = 10  # in [s]
 sampling_freq = 44100  # in [Hz]  
-num_epochs=2
-train_ratio = 0.6
-val_ratio = 0.2
+num_epochs=50
+train_ratio = 0.8
+val_ratio = 0.1
 downsampling_new_sr = 344  #6890   # Ratio=64
-batch_size = 2
+batch_size = 1
 use_filter=False
 filter_num_coeff = [1]
 filter_dem_coeff = [1, 1]
-audio_gain = 10 # dB
-noise_gain = 5 # dB
-normalization_flag = True
-ML_type = "NN"
+audio_gain = 1 # dB
+noise_gain = 1 # dB
+normalization_flag = False
+ML_type = "CNN"
 window_len_sample = window_size_sec * sampling_freq
 window_len_sample_downsampled = window_size_sec * downsampling_new_sr
 noise_files = os.listdir(noise_dir); num_noise_combinations=sum(os.path.isfile(os.path.join(noise_dir,f )) for f in noise_files)
@@ -321,6 +321,8 @@ def ML_training(train_inputs,train_labels):
     predictions=[]
     gt=[]
     for epoch in range(num_epochs):
+        print("-----------------------------")
+        print("epoch:", epoch)
         model.train()
         running_train_loss = 0
         num_train_batches = len(train_inputs)
@@ -333,6 +335,10 @@ def ML_training(train_inputs,train_labels):
             optimizer.step()
             running_train_loss += loss_value.item()
 
+            print("real:", targets.detach().cpu().numpy().flatten())
+            print("pred:", outputs.detach().cpu().numpy().flatten())
+            print("-------")
+
             if epoch == num_epochs-1:
                 ground_truth_values = targets.detach().cpu().numpy().flatten()
                 predicted_values = outputs.detach().cpu().numpy().flatten()
@@ -340,6 +346,8 @@ def ML_training(train_inputs,train_labels):
 
                 predictions.append(predicted_values)
                 gt.append(ground_truth_values)
+
+
 
         avg_train_loss = running_train_loss / num_train_batches
         train_loss_values.append(avg_train_loss)
