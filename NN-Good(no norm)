@@ -18,10 +18,10 @@ from sklearn.preprocessing import StandardScaler
 ################################### Inputs
 recordings_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Audio_short"
 noise_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Noise_to_use_two"
-window_size_sec = 1  # in [s]
+window_size_sec = 10  # in [s]
 sampling_freq = 44100  # in [Hz]  
 window_len_sample = window_size_sec * sampling_freq
-num_noise_combinations = 2
+num_noise_combinations = 27
 num_epochs=25
 train_ratio = 0.6
 val_ratio = 0.2
@@ -33,7 +33,7 @@ filter_num_coeff = [1]
 filter_dem_coeff = [1, 1]
 audio_gain = 10 # dB
 noise_gain = 5 # dB
-normalization_flag = True
+normalization_flag = False
 ################################### Main
 def loading_data(dir):
     files = os.listdir(dir) 
@@ -124,10 +124,7 @@ def find_RMS_noise(data):
     RMS_values = {}
     for i, recording in enumerate (data.items()):
         my_data = recording[1]
-        min_val = np.min(my_data)
-        max_val = np.max(my_data)
-        my_data_amp_nor = (my_data-min_val)/(max_val-min_val)
-        RMS_values [i] = np.sqrt(np.mean((np.array(my_data_amp_nor)**2)))
+        RMS_values [i] = np.sqrt(np.mean((np.array(my_data)**2)))
     
     RMS_values_new = {}
     for key, value in RMS_values.items():
@@ -137,10 +134,7 @@ def find_RMS_noise_with_norm(data_1, data_2, data_3):
     RMS_values_1 = {}
     for i, recording in enumerate (data_1.items()):
         my_data = recording[1]
-        min_val = np.min(my_data)
-        max_val = np.max(my_data)
-        my_data_amp_nor = (my_data-min_val)/(max_val-min_val)
-        RMS_values_1 [i] = np.sqrt(np.mean((np.array(my_data_amp_nor)**2)))
+        RMS_values_1 [i] = np.sqrt(np.mean((np.array(my_data)**2)))
     RMS_values_new_1 = {}
     for key, value in RMS_values_1.items():
         RMS_values_new_1[key] = np.array(value, dtype= np.float32)
@@ -148,10 +142,7 @@ def find_RMS_noise_with_norm(data_1, data_2, data_3):
     RMS_values_2 = {}
     for i, recording in enumerate (data_2.items()):
         my_data = recording[1]
-        min_val = np.min(my_data)
-        max_val = np.max(my_data)
-        my_data_amp_nor = (my_data-min_val)/(max_val-min_val)
-        RMS_values_2 [i] = np.sqrt(np.mean((np.array(my_data_amp_nor)**2)))
+        RMS_values_2 [i] = np.sqrt(np.mean((np.array(my_data)**2)))
     RMS_values_new_2 = {}
     for key, value in RMS_values_2.items():
         RMS_values_new_2[key] = np.array(value, dtype= np.float32)
@@ -159,10 +150,7 @@ def find_RMS_noise_with_norm(data_1, data_2, data_3):
     RMS_values_3 = {}
     for i, recording in enumerate (data_3.items()):
         my_data = recording[1]
-        min_val = np.min(my_data)
-        max_val = np.max(my_data)
-        my_data_amp_nor = (my_data-min_val)/(max_val-min_val)
-        RMS_values_3 [i] = np.sqrt(np.mean((np.array(my_data_amp_nor)**2)))
+        RMS_values_3 [i] = np.sqrt(np.mean((np.array(my_data)**2)))
     RMS_values_new_3 = {}
     for key, value in RMS_values_3.items():
         RMS_values_new_3[key] = np.array(value, dtype= np.float32)
@@ -207,54 +195,25 @@ def data_splitting(x, y, z):
 
     return train_x, val_x, test_x, train_y, val_y, test_y, train_z, val_z, test_z
 
-class CNN(nn.Module):
+class NN(nn.Module):
     def __init__(self):
-        super(CNN, self).__init__()
-        self.conv1 = nn.Conv1d(in_channels=2, out_channels=16, kernel_size=2, stride=1, padding=1, dilation=2)
-        self.conv2 = nn.Conv1d(in_channels=16, out_channels=32, kernel_size=2, stride=1, padding=1, dilation=2)
-        self.conv3 = nn.Conv1d(in_channels=32, out_channels=64, kernel_size=2, stride=1, padding=1, dilation=2)
-        self.conv4 = nn.Conv1d(in_channels=64, out_channels=128, kernel_size=2, stride=1, padding=1, dilation=2)
-        self.conv5 = nn.Conv1d(in_channels=128, out_channels=256, kernel_size=2, stride=1, padding=1, dilation=2)
-        self.conv6 = nn.Conv1d(in_channels=256, out_channels=512, kernel_size=2, stride=1, padding=1, dilation=2)
-        self.conv7 = nn.Conv1d(in_channels=512, out_channels=1024, kernel_size=2, stride=1, padding=1, dilation=2)
-        self.conv8 = nn.Conv1d(in_channels=1024, out_channels=2048, kernel_size=2, stride=1, padding=1, dilation=2)
-        self.pool = nn.MaxPool1d(kernel_size=2, stride=2, padding=0)
+        super(NN, self).__init__()
         self.relu = nn.LeakyReLU(negative_slope=0.01)
-        self.pool8 = nn.MaxPool1d(kernel_size=2,stride=2,padding=0)
-        self.flattened_size= self._get_flattened_size()
-        self.fc1 = nn.Linear(self.flattened_size,1024)
-        self.fc2= nn.Linear(1024,512)
-        self.fc3= nn.Linear(512,256)
-        self.fc4= nn.Linear(256,128)
-        self.fc5= nn.Linear(128,64)
-        self.fc6= nn.Linear(64,32)
-        self.fc7= nn.Linear(32,16)
-        self.fc8= nn.Linear(16,8)
-        self.fc9= nn.Linear(8,4)
-        self.fc10= nn.Linear(4,2)
-        self.fc11 = nn.Linear(2, 1)
+        self.fc1 = nn.Linear(6880,4096)
+        self.fc2 = nn.Linear(4096,2048)
+        self.fc3 = nn.Linear(2048,1024)
+        self.fc4 = nn.Linear(1024,512)
+        self.fc5= nn.Linear(512,256)
+        self.fc6= nn.Linear(256,128)
+        self.fc7= nn.Linear(128,64)
+        self.fc8= nn.Linear(64,32)
+        self.fc9= nn.Linear(32,16)
+        self.fc10= nn.Linear(16,8)
+        self.fc11= nn.Linear(8,4)
+        self.fc12= nn.Linear(4,2)
+        self.fc13= nn.Linear(2, 1)
         
-    def _get_flattened_size(self):
-        x = torch.zeros(1,2,window_len_sample_downsampled) # one sample regardless the batch size, num channels, num timepoints
-        x = self.pool(self.relu(self.conv1(x)))
-        x = self.pool(self.relu(self.conv2(x)))
-        x = self.pool(self.relu(self.conv3(x)))
-        x = self.pool(self.relu(self.conv4(x)))
-        x = self.pool(self.relu(self.conv5(x)))
-        x = self.pool(self.relu(self.conv6(x)))
-        x = self.pool(self.relu(self.conv7(x)))        
-        x = self.pool8(self.relu(self.conv8(x)))
-        return x.numel()
-
     def forward(self,x):
-        x = self.pool(self.relu(self.conv1(x)))
-        x = self.pool(self.relu(self.conv2(x)))
-        x = self.pool(self.relu(self.conv3(x)))
-        x = self.pool(self.relu(self.conv4(x)))
-        x = self.pool(self.relu(self.conv5(x)))
-        x = self.pool(self.relu(self.conv6(x)))
-        x = self.pool(self.relu(self.conv7(x))) 
-        x = self.pool8(self.relu(self.conv8(x)))
         x_dim = x.dim()
         if x_dim==3:
             x=x.view(x.size(0), -1)
@@ -271,7 +230,9 @@ class CNN(nn.Module):
         x = self.relu(self.fc8(x))
         x = self.relu(self.fc9(x))
         x = self.relu(self.fc10(x))
-        x = self.fc11(x)
+        x = self.relu(self.fc11(x))
+        x = self.relu(self.fc12(x))
+        x = self.fc13(x)
         return x
 class CustomDataset(Dataset):
     def __init__(self,inputs,labels):
@@ -289,7 +250,7 @@ def ML_training(train_inputs,train_labels):
     dataloader = DataLoader(dataset,batch_size=batch_size, shuffle=True)
 
     reg_criterion = nn.MSELoss()
-    model = CNN()
+    model = NN()
     optimizer = optim.Adam(model.parameters(),lr=0.001)
 
     train_loss_values = []
@@ -418,8 +379,8 @@ def plotting_results_general_training(error,predictions,gt,printing_label):
     pred_ready = [element for array in predictions for element in array.tolist()]
     diff = [a-b for a,b in zip(real_ready,pred_ready)]
     plt.figure(figsize=(10,5))
-    plt.plot(real_ready[1:1000])
-    plt.plot(pred_ready[1:1000])
+    plt.plot(real_ready)
+    plt.plot(pred_ready)
     #plt.title(title)
     #plt.show()
     plt.savefig(f"{printing_label} raw performance.png")
@@ -451,7 +412,7 @@ def plotting_results_general_other(error,predictions,gt,printing_label):
 
 
 
-def run_CNN():
+def run_NN():
     # Preprocessing
     Data_A = loading_data(noise_dir)
     Data_B = resampling(Data_A)
@@ -479,15 +440,13 @@ def run_CNN():
            
 
     # Data prep for ML work
-    
     if normalization_flag == True:
         train_x_no_norm, val_x_no_norm, test_x_no_norm, train_y_no_norm, val_y_no_norm, test_y_no_norm, train_z_no_norm, val_z_no_norm, test_z_no_norm = data_splitting (Data_X, Data_Y, Data_O)
-
         train_x, val_x, test_x = normalization (train_x_no_norm, val_x_no_norm, test_x_no_norm)
         train_y, val_y, test_y = normalization (train_y_no_norm, val_y_no_norm, test_y_no_norm)
 
-        train_z_full_data, val_z_full_data, test_z_full_data = normalization (train_z_no_norm, val_z_no_norm, test_z_no_norm)
-        train_z, val_z, test_z = find_RMS_noise_with_norm(train_z_full_data, val_z_full_data, test_z_full_data)  
+        train_z_no_norm, val_z_no_norm, test_z_no_norm = find_RMS_noise_with_norm(train_z_no_norm, val_z_no_norm, test_z_no_norm ) 
+        train_z, val_z, test_z = normalization (train_z_no_norm, val_z_no_norm, test_z_no_norm)
     else:
         Data_Z = find_RMS_noise(Data_O) 
         train_x, val_x, test_x, train_y, val_y, test_y, train_z, val_z, test_z = data_splitting (Data_X, Data_Y, Data_Z)
@@ -508,4 +467,4 @@ def run_CNN():
     # Return back parameters
 
 if __name__ == "__main__":
-    run_CNN()
+    run_NN()
