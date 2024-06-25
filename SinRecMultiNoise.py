@@ -20,7 +20,7 @@ recordings_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Audio_
 noise_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Noise_to_use_temp"
 window_size_sec = 108  # in [s]
 sampling_freq = 44100  # in [Hz]  
-num_epochs=70
+num_epochs=30
 train_ratio = 0.9
 val_ratio = 0.05
 downsampling_new_sr = 344  #6890   # Ratio=64
@@ -30,7 +30,7 @@ filter_num_coeff = [1]
 filter_dem_coeff = [1, 1]
 noise_gain = 0 # dB
 normalization_flag = False
-ML_type = "CNN"
+ML_type = "CNN_LSTM"
 audio_gains = [i for i in range(1,20)]  # dB
 window_len_sample = window_size_sec * sampling_freq
 window_len_sample_downsampled = window_size_sec * downsampling_new_sr
@@ -134,7 +134,7 @@ def find_RMS_noise(data):
     RMS_values = {}
     for i, recording in enumerate (data.items()):
         my_data = recording[1]
-        RMS_values [i] = np.sqrt(np.mean((np.array(my_data)**2)))
+        RMS_values [i] =  np.sqrt(np.mean((np.array(my_data)**2)))
     
     RMS_values_new = {}
     for key, value in RMS_values.items():
@@ -271,11 +271,79 @@ class CNN(nn.Module):
         x = self.relu(self.fc10(x))
         x = self.fc11(x)
         return x
+class CNN_LSTM(nn.Module):
+    def __init__(self):
+        super(CNN_LSTM, self).__init__()
+        self.conv1 = nn.Conv1d(in_channels=2, out_channels=16, kernel_size=2, stride=1, padding=1, dilation=2)
+        self.conv2 = nn.Conv1d(in_channels=16, out_channels=32, kernel_size=2, stride=1, padding=1, dilation=2)
+        self.conv3 = nn.Conv1d(in_channels=32, out_channels=64, kernel_size=2, stride=1, padding=1, dilation=2)
+        self.conv4 = nn.Conv1d(in_channels=64, out_channels=128, kernel_size=2, stride=1, padding=1, dilation=2)
+        self.conv5 = nn.Conv1d(in_channels=128, out_channels=256, kernel_size=2, stride=1, padding=1, dilation=2)
+        self.conv6 = nn.Conv1d(in_channels=256, out_channels=512, kernel_size=2, stride=1, padding=1, dilation=2)
+        self.conv7 = nn.Conv1d(in_channels=512, out_channels=1024, kernel_size=2, stride=1, padding=1, dilation=2)
+        self.conv8 = nn.Conv1d(in_channels=1024, out_channels=2048, kernel_size=2, stride=1, padding=1, dilation=2)
+        self.pool = nn.MaxPool1d(kernel_size=2, stride=2, padding=0)
+        self.relu = nn.LeakyReLU(negative_slope=0.01)
+        self.pool8 = nn.MaxPool1d(kernel_size=2,stride=2,padding=0)
+        self.flattened_size= self._get_flattened_size()
+        self.fc1 = nn.Linear(self.flattened_size,1024)
+        self.lstm = nn.LSTM(input_size=1024, hidden_size=1024, num_layers=2)
+        self.fc2= nn.Linear(1024,512)
+        self.fc3= nn.Linear(512,256)
+        self.fc4= nn.Linear(256,128)
+        self.fc5= nn.Linear(128,64)
+        self.fc6= nn.Linear(64,32)
+        self.fc7= nn.Linear(32,16)
+        self.fc8= nn.Linear(16,8)
+        self.fc9= nn.Linear(8,4)
+        self.fc10= nn.Linear(4,2)
+        self.fc11 = nn.Linear(2, 1)
+        
+    def _get_flattened_size(self):
+        x = torch.zeros(1,2,window_len_sample_downsampled) # one sample regardless the batch size, num channels, num timepoints
+        x = self.pool(self.relu(self.conv1(x)))
+        x = self.pool(self.relu(self.conv2(x)))
+        x = self.pool(self.relu(self.conv3(x)))
+        x = self.pool(self.relu(self.conv4(x)))
+        x = self.pool(self.relu(self.conv5(x)))
+        x = self.pool(self.relu(self.conv6(x)))
+        x = self.pool(self.relu(self.conv7(x)))        
+        x = self.pool8(self.relu(self.conv8(x)))
+        return x.numel()
+
+    def forward(self,x):
+        x = self.pool(self.relu(self.conv1(x)))
+        x = self.pool(self.relu(self.conv2(x)))
+        x = self.pool(self.relu(self.conv3(x)))
+        x = self.pool(self.relu(self.conv4(x)))
+        x = self.pool(self.relu(self.conv5(x)))
+        x = self.pool(self.relu(self.conv6(x)))
+        x = self.pool(self.relu(self.conv7(x))) 
+        x = self.pool8(self.relu(self.conv8(x)))
+        x_dim = x.dim()
+        if x_dim==3:
+            x=x.view(x.size(0), -1)
+        else:
+            x=x.view(-1)
+
+        x = self.relu(self.fc1(x))
+        x,_ = self.lstm(x)
+        x = self.relu(self.fc2(x))
+        x = self.relu(self.fc3(x))
+        x = self.relu(self.fc4(x))
+        x = self.relu(self.fc5(x))
+        x = self.relu(self.fc6(x))
+        x = self.relu(self.fc7(x))
+        x = self.relu(self.fc8(x))
+        x = self.relu(self.fc9(x))
+        x = self.relu(self.fc10(x))
+        x = self.fc11(x)
+        return x
 class NN(nn.Module):
     def __init__(self):
         super(NN, self).__init__()
         self.relu = nn.LeakyReLU(negative_slope=0.01)
-        self.fc1 = nn.Linear(6880,4096)
+        self.fc1 = nn.Linear(74304,4096)
         self.fc2 = nn.Linear(4096,2048)
         self.fc3 = nn.Linear(2048,1024)
         self.fc4 = nn.Linear(1024,512)
@@ -549,6 +617,8 @@ def run_ML():
 if __name__ == "__main__":
     if ML_type == "CNN":
         my_ML_model = CNN()
-    else:
+    elif ML_type == "NN":
         my_ML_model = NN()
+    elif ML_type == "CNN_LSTM":
+        my_ML_model = CNN_LSTM()        
     run_ML()
