@@ -14,13 +14,14 @@ import IPython.display as ipd
 import sounddevice as sd
 import scipy.signal as signal
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
+import math
 
 ################################### Inputs
-recordings_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Audio_short_temp_short"
-noise_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Noise_to_use_temp_short"
+recordings_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Audio_short_temp"
+noise_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Noise_to_use"
 window_size_sec = 4  # in [s]
 sampling_freq = 44100  # in [Hz]  
-num_epochs=2000
+num_epochs=100
 train_ratio = .9
 val_ratio = .05
 downsampling_new_sr = 690   #Ratio=64,128 = 690,344
@@ -31,7 +32,8 @@ filter_dem_coeff = [1, 1]
 normalization_flag = True
 noise_gains = [0] # dB
 ML_type = "CNN"
-audio_gains = [i for i in np.arange(-10,-110,-10)]  
+norm_feature =True
+sought_ratio = [1, 2, 3]         # data to noise          #audio_gains = [-10,-50,-90] #[i for i in np.arange(-100,-210,-10)]  
 window_len_sample = window_size_sec * sampling_freq
 window_len_sample_downsampled = window_size_sec * downsampling_new_sr
 noise_files = os.listdir(noise_dir); num_noise_combinations=sum(os.path.isfile(os.path.join(noise_dir,f )) for f in noise_files)
@@ -42,7 +44,7 @@ def loading_data(dir):
     for i,file in enumerate(files):
         audio_path=os.path.join(dir,file)
         audio_data, sample_rate = librosa.load(audio_path,sr=None)
-        full_recordings[i] = audio_data
+        full_recordings[i] = audio_data[:window_len_sample]
     return full_recordings
 def resampling(orig_data,label):
     full_resampled_data={}
@@ -61,7 +63,7 @@ def modifying_noise(Data):
         else:
             modified_data[i] = Data[i]
     return modified_data
-def adding_gain_audio(data,gain):
+def adding_gain_audio(data,audio_gains):
     desired_gains_linear = []
     for gain in audio_gains:
         desired_gains_linear.append(10 ** (gain / 20))
@@ -107,7 +109,7 @@ def duplicating_recordings(audio, noise):
             duplicated_noise[master_c]=noise[ii]
             master_c+=1
     return duplicated_audio, duplicated_noise
-def duplicating_recordings_for_gain(audio):
+def duplicating_recordings_for_gain(audio,audio_gains):
     duplicated_audio = {}
     master_c = 0
     for i in range (0, len(audio)):
@@ -172,38 +174,62 @@ def find_RMS_noise(data):
         RMS_values_new[key] = np.array(value, dtype= np.float32)
     return RMS_values_new
 def find_RMS_noise_with_norm(data_1, data_2, data_3):
-    RMS_values_1 = {}
-    for i, recording in enumerate (data_1.items()):
-        my_data = recording[1]
-        RMS_values_1 [i] = np.sqrt(np.mean((np.array(my_data)**2)))
-    temp_arr = np.hstack(list(RMS_values_1.values())).reshape(-1, 1)
-    scaler = MinMaxScaler()
-    scaler.fit(temp_arr)
-    scaler.transform(temp_arr)
-    RMS_values_new_1 = {}
-    for i in range(0,len(temp_arr)):
-        RMS_values_new_1[i] = np.array(temp_arr[i], dtype= np.float32)
+    if norm_feature==True:
+        RMS_values_1 = {}
+        for i, recording in enumerate (data_1.items()):
+            my_data = recording[1]
+            RMS_values_1 [i] = np.sqrt(np.mean((np.array(my_data)**2)))
+        temp_arr = np.hstack(list(RMS_values_1.values())).reshape(-1, 1)
+        scaler = MinMaxScaler()
+        scaler.fit(temp_arr)
+        temp_arr_new = scaler.transform(temp_arr)
+        RMS_values_new_1 = {}
+        for i in range(0,len(temp_arr_new)):
+            RMS_values_new_1[i] = np.array(temp_arr_new[i], dtype= np.float32)
 
-    RMS_values_2 = {}
-    for i, recording in enumerate (data_2.items()):
-        my_data = recording[1]
-        RMS_values_2 [i] = np.sqrt(np.mean((np.array(my_data)**2)))
-    temp_arr = np.hstack(list(RMS_values_2.values())).reshape(-1, 1)
-    scaler.transform(temp_arr)
-    RMS_values_new_2 = {}
-    for i in range(0,len(temp_arr)):
-        RMS_values_new_2[i] = np.array(temp_arr[i], dtype= np.float32)
+        RMS_values_2 = {}
+        for i, recording in enumerate (data_2.items()):
+            my_data = recording[1]
+            RMS_values_2 [i] = np.sqrt(np.mean((np.array(my_data)**2)))
+        temp_arr = np.hstack(list(RMS_values_2.values())).reshape(-1, 1)
+        temp_arr_new =scaler.transform(temp_arr)
+        RMS_values_new_2 = {}
+        for i in range(0,len(temp_arr_new)):
+            RMS_values_new_2[i] = np.array(temp_arr_new[i], dtype= np.float32)
 
-    RMS_values_3 = {}
-    for i, recording in enumerate (data_3.items()):
-        my_data = recording[1]
-        RMS_values_3 [i] = np.sqrt(np.mean((np.array(my_data)**2)))
-    temp_arr = np.hstack(list(RMS_values_3.values())).reshape(-1, 1)
-    scaler.transform(temp_arr)
-    RMS_values_new_3 = {}
-    for i in range(0,len(temp_arr)):
-        RMS_values_new_3[i] = np.array(temp_arr[i], dtype= np.float32)
+        RMS_values_3 = {}
+        for i, recording in enumerate (data_3.items()):
+            my_data = recording[1]
+            RMS_values_3 [i] = np.sqrt(np.mean((np.array(my_data)**2)))
+        temp_arr = np.hstack(list(RMS_values_3.values())).reshape(-1, 1)
+        temp_arr_new =scaler.transform(temp_arr)
+        RMS_values_new_3 = {}
+        for i in range(0,len(temp_arr_new)):
+            RMS_values_new_3[i] = np.array(temp_arr_new[i], dtype= np.float32)
+    else:
+        RMS_values_1 = {}
+        for i, recording in enumerate (data_1.items()):
+            my_data = recording[1]
+            RMS_values_1 [i] = np.sqrt(np.mean((np.array(my_data)**2)))
+        RMS_values_new_1 = {}
+        for key, value in RMS_values_1.items():
+            RMS_values_new_1[key] = np.array(value, dtype= np.float32)
 
+        RMS_values_2 = {}
+        for i, recording in enumerate (data_2.items()):
+            my_data = recording[1]
+            RMS_values_2 [i] = np.sqrt(np.mean((np.array(my_data)**2)))
+        RMS_values_new_2 = {}
+        for key, value in RMS_values_2.items():
+            RMS_values_new_2[key] = np.array(value, dtype= np.float32)
+
+        RMS_values_3 = {}
+        for i, recording in enumerate (data_3.items()):
+            my_data = recording[1]
+            RMS_values_3 [i] = np.sqrt(np.mean((np.array(my_data)**2)))
+        RMS_values_new_3 = {}
+        for key, value in RMS_values_3.items():
+            RMS_values_new_3[key] = np.array(value, dtype= np.float32)
 
     return RMS_values_new_1, RMS_values_new_2, RMS_values_new_3
 def data_prep_for_ML(channel1, channel2):
@@ -310,25 +336,28 @@ class FC(nn.Module):
 class CNN_LSTM_b(nn.Module):
     def __init__(self):
         super(CNN_LSTM_b, self).__init__()
-        self.conv1 = nn.Conv1d(in_channels=2, out_channels=16, kernel_size=10, stride=10, padding=1, dilation=1)
+        self.conv1 = nn.Conv1d(in_channels=2, out_channels=16, kernel_size=3, stride=3, padding=1, dilation=1)
+        self.conv2 = nn.Conv1d(in_channels=16, out_channels=32, kernel_size=3, stride=3, padding=1, dilation=1)
+        self.conv3 = nn.Conv1d(in_channels=32, out_channels=64, kernel_size=3, stride=3, padding=1, dilation=1)
         self.pool = nn.MaxPool1d(kernel_size=2, stride=2, padding=0)
-        self.relu = nn.ReLU(negative_slope=0.01)
+        self.relu = nn.ReLU()
         self.flattened_size= self._get_flattened_size()
-        self.lstm = nn.LSTM(input_size=self.flattened_size, hidden_size=5000, num_layers=1)
-        self.fc1 = nn.Linear(5000,4096)
-        self.fc2 = nn.Linear(4096,2048)
-        self.fc3 = nn.Linear(2048,1024)
-        self.fc4 = nn.Linear(1024,256)
-        self.fc5 = nn.Linear(256,64)        
-        self.fc6= nn.Linear(64,1)
+        self.lstm = nn.LSTM(input_size=self.flattened_size, hidden_size=512, num_layers=1)
+        self.fc1 = nn.Linear(512,256)
+        self.fc2 = nn.Linear(256,64)        
+        self.fc3 = nn.Linear(64,1)
         
     def _get_flattened_size(self):
         x = torch.zeros(1,2,window_len_sample_downsampled) # one sample regardless the batch size, num channels, num timepoints
         x = self.pool(self.relu(self.conv1(x)))
+        x = self.pool(self.relu(self.conv2(x)))
+        x = self.pool(self.relu(self.conv3(x)))
         return x.numel()
 
     def forward(self,x):
         x = self.pool(self.relu(self.conv1(x)))
+        x = self.pool(self.relu(self.conv2(x)))
+        x = self.pool(self.relu(self.conv3(x)))
 
         x_dim = x.dim()
         if x_dim==3:
@@ -339,11 +368,8 @@ class CNN_LSTM_b(nn.Module):
         x,_ = self.lstm(x)
 
         x = self.relu(self.fc1(x))
-        x = self.relu(self.fc2(x))
-        x = self.relu(self.fc3(x))
-        x = self.relu(self.fc4(x))
-        x = self.relu(self.fc5(x))       
-        x = self.fc6(x)
+        x = self.relu(self.fc2(x))  
+        x = self.fc3(x)
         return x
 class CNN_LSTM_a(nn.Module):
     def __init__(self):
@@ -489,7 +515,9 @@ def ML_training(train_inputs,train_labels, train_keys):
             optimizer.step()
             running_train_loss += loss_value.item()
 
-
+            print("real:", targets.detach().cpu().numpy().flatten())
+            print("pred:", outputs.detach().cpu().numpy().flatten())
+            print("-------")
 
             
 
@@ -501,9 +529,7 @@ def ML_training(train_inputs,train_labels, train_keys):
                 predictions.append(predicted_values)
                 gt.append(ground_truth_values)
 
-        print("real:", targets.detach().cpu().numpy().flatten())
-        print("pred:", outputs.detach().cpu().numpy().flatten())
-        print("-------")
+        
 
 
 
@@ -633,9 +659,19 @@ def plotting_results_general_other(error,predictions,gt,printing_label):
     #plt.show()
     plt.savefig(f"{printing_label} raw performance.png")
 
-
-
-
+def determine_data_gain(noise, audio):
+    noise_rms_full = find_RMS_noise(noise)
+    noise_rms = np.hstack(list(noise_rms_full.values()))
+    mean_noise_rms = np.mean(noise_rms)
+    needed_audio_rms = mean_noise_rms / sought_ratio
+    current_data_rms = find_RMS_data(audio)
+    current_data_rms_list = list(current_data_rms.values())
+    gains_linear = needed_audio_rms/current_data_rms_list
+    gains_db = []
+    for gain in gains_linear:
+        a = math.log10(gain)
+        gains_db.append(20 * a)
+    return gains_db
 
 def run_ML():
 
@@ -646,6 +682,7 @@ def run_ML():
     Data_D = loading_data(recordings_dir)
     Data_E = resampling(Data_D,"data")
     Data_F = transfer_fun(Data_E)
+    audio_gains = determine_data_gain(Data_A, Data_D)
     Data_G = adding_gain_audio(Data_F, audio_gains)
 
     Data_I, Data_H = duplicating_recordings(Data_G, Data_C)
@@ -654,7 +691,7 @@ def run_ML():
     Data_K = mixing(Data_I, Data_J)
     Data_X= windowing(Data_K)
 
-    Data_LD = duplicating_recordings_for_gain(Data_E)
+    Data_LD = duplicating_recordings_for_gain(Data_E,audio_gains)
     Data_L, _ = duplicating_recordings(Data_LD, Data_C)
     Data_Y = windowing(Data_L)
 
@@ -668,10 +705,6 @@ def run_ML():
     # Splitting and normalization
     if normalization_flag == False:
         Data_Z = find_RMS_noise(Data_O); 
-        
-        print(f"noise rms: {Data_Z[0]},{Data_Z[len(Data_Z)-1]}"); 
-        data_rms =find_RMS_data(Data_G)
-        print(f"data rms: {data_rms}")
         
         train_x_norm, val_x_norm, test_x_norm, train_y_norm, val_y_norm, test_y_norm, train_z_norm, val_z_norm, test_z_norm, train_keys, val_keys, test_keys = data_splitting (Data_X, Data_Y, Data_Z)
     
