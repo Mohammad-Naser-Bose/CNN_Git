@@ -13,14 +13,14 @@ from torch.utils.data import DataLoader, TensorDataset, Dataset
 import IPython.display as ipd
 import sounddevice as sd
 import scipy.signal as signal
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 ################################### Inputs
 recordings_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Audio_short_temp_short"
 noise_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\Noise_to_use_temp_short"
 window_size_sec = 4  # in [s]
 sampling_freq = 44100  # in [Hz]  
-num_epochs=6000
+num_epochs=2000
 train_ratio = .9
 val_ratio = .05
 downsampling_new_sr = 690   #Ratio=64,128 = 690,344
@@ -28,10 +28,10 @@ batch_size = 1
 use_filter=False
 filter_num_coeff = [1]
 filter_dem_coeff = [1, 1]
-normalization_flag = False
+normalization_flag = True
 noise_gains = [0] # dB
 ML_type = "CNN"
-audio_gains = [-10,-20,-30,-40,-50,-60,-70,-80,-90,-100] #[i for i in np.arange(-10,-100,-5)]  # dB
+audio_gains = [i for i in np.arange(-10,-110,-10)]  
 window_len_sample = window_size_sec * sampling_freq
 window_len_sample_downsampled = window_size_sec * downsampling_new_sr
 noise_files = os.listdir(noise_dir); num_noise_combinations=sum(os.path.isfile(os.path.join(noise_dir,f )) for f in noise_files)
@@ -144,7 +144,7 @@ def windowing(signal):
 def normalization (train_no_norm, val_no_norm, test_no_norm):
 
     all_windows_training = np.concatenate ([np.array(value) for value in train_no_norm.values()])
-    scaler = MinMaxScaler()
+    scaler = StandardScaler()
     scaler.fit(all_windows_training.reshape(-1,1))
     normalized_training_windows = {key:scaler.transform(np.array(value).reshape(-1,1)).flatten().tolist() for key, value in train_no_norm.items()}
     normalized_validation_windows = {key:scaler.transform(np.array(value).reshape(-1,1)).flatten().tolist() for key, value in val_no_norm.items()}
@@ -304,7 +304,7 @@ class CNN_LSTM_b(nn.Module):
         super(CNN_LSTM_b, self).__init__()
         self.conv1 = nn.Conv1d(in_channels=2, out_channels=16, kernel_size=10, stride=10, padding=1, dilation=1)
         self.pool = nn.MaxPool1d(kernel_size=2, stride=2, padding=0)
-        self.relu = nn.LeakyReLU(negative_slope=0.01)
+        self.relu = nn.ReLU(negative_slope=0.01)
         self.flattened_size= self._get_flattened_size()
         self.lstm = nn.LSTM(input_size=self.flattened_size, hidden_size=5000, num_layers=1)
         self.fc1 = nn.Linear(5000,4096)
@@ -342,7 +342,7 @@ class CNN_LSTM_a(nn.Module):
         super(CNN_LSTM_a, self).__init__()
         self.conv1 = nn.Conv1d(in_channels=2, out_channels=16, kernel_size=5, stride=5, padding=1, dilation=1)
         self.pool = nn.MaxPool1d(kernel_size=2, stride=2, padding=0)
-        self.relu = nn.LeakyReLU(negative_slope=0.01)
+        self.relu = nn.ReLU(negative_slope=0.01)
         self.flattened_size= self._get_flattened_size()
         self.fc1 = nn.Linear(self.flattened_size,4096)
         self.lstm = nn.LSTM(input_size=4096, hidden_size=4096, num_layers=2)
@@ -376,7 +376,7 @@ class CNN_LSTM_c(nn.Module):
 
         self.conv1 = nn.Conv1d(in_channels=2, out_channels=16, kernel_size=2, stride=2, padding=1, dilation=1)
         self.pool = nn.MaxPool1d(kernel_size=2, stride=2, padding=0)
-        self.relu = nn.LeakyReLU(negative_slope=0.01)
+        self.relu = nn.ReLU(negative_slope=0.01)
         self.flattened_size= self._get_flattened_size()
         self.fc1 = nn.Linear(self.flattened_size,256)
         self.fc2 = nn.Linear(256,64)
@@ -405,7 +405,7 @@ class CNN_LSTM_c(nn.Module):
 class NN(nn.Module):
     def __init__(self):
         super(NN, self).__init__()
-        self.relu = nn.LeakyReLU(negative_slope=0.01)
+        self.relu = nn.ReLU(negative_slope=0.01)
         self.fc1 = nn.Linear(74304,4096)
         self.fc2 = nn.Linear(4096,2048)
         self.fc3 = nn.Linear(2048,1024)
@@ -458,7 +458,7 @@ def ML_training(train_inputs,train_labels, train_keys):
     reg_criterion = nn.MSELoss()
     model = my_ML_model 
     optimizer = optim.Adam(model.parameters(),lr=0.001)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min",factor=0.1, patience=10, verbose =True)
+    #scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min",factor=0.1, patience=10)
 
     train_loss_values = []
     error=[]
@@ -476,17 +476,14 @@ def ML_training(train_inputs,train_labels, train_keys):
             inputs = inputs.to(torch.float32)
             outputs = model(inputs.squeeze(1))
 
-            loss_value = reg_criterion(outputs, targets)
+            loss_value = reg_criterion(outputs, targets.unsqueeze(1))
             loss_value.backward()
             optimizer.step()
             running_train_loss += loss_value.item()
 
-            print("real:", targets.detach().cpu().numpy().flatten())
-            print("pred:", outputs.detach().cpu().numpy().flatten())
-            print("-------")
 
 
-            #scheduler.step(avg_train_loss)
+            
 
             if epoch == num_epochs-1:
                 ground_truth_values = targets.detach().cpu().numpy().flatten()
@@ -496,14 +493,21 @@ def ML_training(train_inputs,train_labels, train_keys):
                 predictions.append(predicted_values)
                 gt.append(ground_truth_values)
 
+        print("real:", targets.detach().cpu().numpy().flatten())
+        print("pred:", outputs.detach().cpu().numpy().flatten())
+        print("-------")
+
+
+
         avg_train_loss = running_train_loss / num_train_batches
         train_loss_values.append(avg_train_loss)
+        #scheduler.step(avg_train_loss)
 
-
+        #print(scheduler.get_last_lr())
 
     plotting_performance(train_loss_values,"Training")
     plotting_results_general_training(error,predictions,gt,"Training")
-
+    
 
     return model
 def ML_validating(model, val_inputs,val_labels):
