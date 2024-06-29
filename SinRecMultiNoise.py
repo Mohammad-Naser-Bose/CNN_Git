@@ -176,25 +176,33 @@ def find_RMS_noise_with_norm(data_1, data_2, data_3):
     for i, recording in enumerate (data_1.items()):
         my_data = recording[1]
         RMS_values_1 [i] = np.sqrt(np.mean((np.array(my_data)**2)))
+    temp_arr = np.hstack(list(RMS_values_1.values())).reshape(-1, 1)
+    scaler = MinMaxScaler()
+    scaler.fit(temp_arr)
+    scaler.transform(temp_arr)
     RMS_values_new_1 = {}
-    for key, value in RMS_values_1.items():
-        RMS_values_new_1[key] = np.array(value, dtype= np.float32)
+    for i in range(0,len(temp_arr)):
+        RMS_values_new_1[i] = np.array(temp_arr[i], dtype= np.float32)
 
     RMS_values_2 = {}
     for i, recording in enumerate (data_2.items()):
         my_data = recording[1]
         RMS_values_2 [i] = np.sqrt(np.mean((np.array(my_data)**2)))
+    temp_arr = np.hstack(list(RMS_values_2.values())).reshape(-1, 1)
+    scaler.transform(temp_arr)
     RMS_values_new_2 = {}
-    for key, value in RMS_values_2.items():
-        RMS_values_new_2[key] = np.array(value, dtype= np.float32)
+    for i in range(0,len(temp_arr)):
+        RMS_values_new_2[i] = np.array(temp_arr[i], dtype= np.float32)
 
     RMS_values_3 = {}
     for i, recording in enumerate (data_3.items()):
         my_data = recording[1]
         RMS_values_3 [i] = np.sqrt(np.mean((np.array(my_data)**2)))
+    temp_arr = np.hstack(list(RMS_values_3.values())).reshape(-1, 1)
+    scaler.transform(temp_arr)
     RMS_values_new_3 = {}
-    for key, value in RMS_values_3.items():
-        RMS_values_new_3[key] = np.array(value, dtype= np.float32)
+    for i in range(0,len(temp_arr)):
+        RMS_values_new_3[i] = np.array(temp_arr[i], dtype= np.float32)
 
 
     return RMS_values_new_1, RMS_values_new_2, RMS_values_new_3
