@@ -33,18 +33,26 @@ normalization_flag = True
 noise_gains = [0] # dB
 ML_type = "CNN"
 norm_feature =True
-sought_ratio = [1, 2, 3]         # data to noise          #audio_gains = [-10,-50,-90] #[i for i in np.arange(-100,-210,-10)]  
+sought_ratio = [3]         # data to noise          #audio_gains = [-10,-50,-90] #[i for i in np.arange(-100,-210,-10)]  
 window_len_sample = window_size_sec * sampling_freq
 window_len_sample_downsampled = window_size_sec * downsampling_new_sr
 noise_files = os.listdir(noise_dir); num_noise_combinations=sum(os.path.isfile(os.path.join(noise_dir,f )) for f in noise_files)
 ################################### Main
-def loading_data(dir):
-    files = os.listdir(dir) 
-    full_recordings = {}
-    for i,file in enumerate(files):
-        audio_path=os.path.join(dir,file)
-        audio_data, sample_rate = librosa.load(audio_path,sr=None)
-        full_recordings[i] = audio_data[:window_len_sample]
+def loading_data(dir,label):
+    if label=="noise":
+        files = os.listdir(dir) 
+        full_recordings = {}
+        for i,file in enumerate(files):
+            audio_path=os.path.join(dir,file)
+            audio_data, sample_rate = librosa.load(audio_path,sr=None)
+            full_recordings[i] = audio_data[:window_len_sample]
+    else:
+        files = os.listdir(dir) 
+        full_recordings = {}
+        for i,file in enumerate(files):
+            audio_path=os.path.join(dir,file)
+            audio_data, sample_rate = librosa.load(audio_path,sr=None)
+            full_recordings[i] = audio_data     
     return full_recordings
 def resampling(orig_data,label):
     full_resampled_data={}
@@ -675,11 +683,11 @@ def determine_data_gain(noise, audio):
 
 def run_ML():
 
-    Data_A = loading_data(noise_dir)
+    Data_A = loading_data(noise_dir,"noise")
     Data_AB = resampling(Data_A,"noise")
     Data_B = modifying_noise(Data_AB)
     Data_C = adding_gain_noise(Data_B, noise_gains)
-    Data_D = loading_data(recordings_dir)
+    Data_D = loading_data(recordings_dir,"audio")
     Data_E = resampling(Data_D,"data")
     Data_F = transfer_fun(Data_E)
     audio_gains = determine_data_gain(Data_A, Data_D)
