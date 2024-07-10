@@ -21,7 +21,7 @@ recordings_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\audio_
 noise_dir = r"C:\Users\mn1059928\OneDrive - Bose Corporation\Desktop\noise_files"
 window_size_sec = 4  # in [s]
 sampling_freq = 44100  # in [Hz]  
-num_epochs=150
+num_epochs=50
 train_ratio = .9
 val_ratio = .05
 downsampling_new_sr = 690   #Ratio=64,128 = 690,344
@@ -33,7 +33,7 @@ normalization_flag = True
 noise_gains = [0] # dB
 ML_type = "CNN"
 norm_feature =True
-sought_ratio = [2, 5, 10]         # data to noise          #audio_gains = [-10,-50,-90] #[i for i in np.arange(-100,-210,-10)]  
+sought_ratio = [5]         # data to noise          #audio_gains = [-10,-50,-90] #[i for i in np.arange(-100,-210,-10)]  
 window_len_sample = window_size_sec * sampling_freq
 window_len_sample_downsampled = window_size_sec * downsampling_new_sr
 noise_files = os.listdir(noise_dir); num_noise_combinations=sum(os.path.isfile(os.path.join(noise_dir,f )) for f in noise_files)
